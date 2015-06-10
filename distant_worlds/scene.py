@@ -25,7 +25,8 @@ from distant_worlds.util import *
 from distant_worlds.idmap import *
 
 class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
-    test = IDRefProperty(name="hello", description="", type='Object')
+    body_object = IDRefProperty(name="Body Object", description="Main object representing the body", type='Object')
+    path_object = IDRefProperty(name="Path Object", description="Curve object for the body's path", type='Object')
 
     def name_update(self, context):
         dw = get_dw(context)
@@ -36,7 +37,8 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
 
     def draw(self, context, layout):
         layout.prop(self, "name")
-        layout.prop(self, "test__enum")
+        layout.prop(self, "body_object__enum", text="Object")
+        layout.prop(self, "path_object__enum", text="Path Object")
 
 class DistantWorldsScene(PropertyGroup):
     active_body = IntProperty(name="Active Body", description="Index of the selected body", default=0)
