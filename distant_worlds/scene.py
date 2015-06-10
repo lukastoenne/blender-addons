@@ -28,10 +28,12 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
     body_object = IDRefProperty(name="Body Object", description="Main object representing the body", type='Object')
     path_object = IDRefProperty(name="Path Object", description="Curve object for the body's path", type='Object')
 
+    @property
+    def dw(self):
+        return self.id_data.distant_worlds
+
     def name_update(self, context):
-        dw = get_dw(context)
-        if dw:
-            self['name'] = unique_name(dw.bodies, self)
+        self['name'] = unique_name(self.dw.bodies, self)
 
     name = StringProperty(name="Name", description="Name of the body", update=name_update)
 
