@@ -29,19 +29,26 @@ bl_info = {
     "category": "Community"}
 
 import bpy
-from distant_worlds import objects, scene, settings, ui
+from distant_worlds import idmap, objects, orbit, scene, settings, ui
+
+# Warning: order of registration can be important
+# unregister calls should be strictly reverse
  
 def register():
+    idmap.register()
+    settings.register()
+    orbit.register()
     objects.register()
     scene.register()
-    settings.register()
     ui.register()
 
 def unregister():
-    objects.unregister()
-    scene.unregister()
-    settings.unregister()
     ui.unregister()
+    scene.unregister()
+    objects.unregister()
+    orbit.unregister()
+    settings.unregister()
+    idmap.unregister()
 
 if __name__ == "__main__":
     register()

@@ -19,12 +19,18 @@
 # <pep8 compliant>
 
 import bpy
- 
+from bpy.app.handlers import persistent
+from distant_worlds import driver
+
+@persistent
+def load_handler(dummy):
+	bpy.app.driver_namespace['distant_worlds'] = driver.driver_namespace
+
 def register():
-    pass
+    bpy.app.handlers.load_post.append(load_handler)
 
 def unregister():
-    pass
+    bpy.app.handlers.load_post.remove(load_handler)
 
 if __name__ == "__main__":
     register()

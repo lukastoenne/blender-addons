@@ -71,6 +71,7 @@ def _find_id(rna_type, data_prop, name, lib):
 def make_id_ref_property(attr, **kw):
     idtype = kw['type']
     rna_type, data_prop = _idtypes[idtype]
+    update = kw.get('update', None)
 
     def fget(self):
         props = self.get(attr, None)
@@ -88,12 +89,18 @@ def make_id_ref_property(attr, **kw):
         if value is None:
             props['idname'] = ""
             props['idlib'] = ""
+
+            if update:
+                update(self, bpy.context)
         else:
-            if isinstance(value, rna_type):
-                props['idname'] = value.name
-                props['idlib'] = value.library.filepath if value.library else ""
-            else:
+            if not isinstance(value, rna_type):
                 raise ValueError("Invalid ID type %s, expected %s" % (value.bl_rna.identifier, rna_type.bl_rna.identifier))
+
+            props['idname'] = value.name
+            props['idlib'] = value.library.filepath if value.library else ""
+                
+            if update:
+                update(self, bpy.context)
 
     def fdel(self):
         if attr in self:
@@ -153,7 +160,13 @@ def make_id_ref_enum(attr, **kw):
         props['idname'] = ""
         props['idlib'] = ""
 
-    return EnumProperty(name=kw['name'], description=kw.get('description', None), items=id_items, get=id_get, set=id_set)
+    return EnumProperty(name=kw['name'],
+                        description=kw.get('description', None),
+                        items=id_items,
+                        get=id_get,
+                        set=id_set,
+                        update=kw.get('update', None)
+                        )
 
 class DistantWorldsPropertyGroup(RNAMetaPropGroup):
     def __new__(cls, name, parents, dct):
@@ -167,3 +180,44 @@ class DistantWorldsPropertyGroup(RNAMetaPropGroup):
 
         # we need to call type.__new__ to complete the initialization
         return super(DistantWorldsPropertyGroup, cls).__new__(cls, name, parents, newdct)
+
+
+class ClearIDRefProperty(bpy.types.Operator):
+    """Set an IDRef property to None"""
+    bl_idname = "distant_worlds.clear_idref"
+    bl_label = "Clear"
+
+    prop = StringProperty(name="Property", description="Name of the IDRef property")
+
+    @classmethod
+    def poll(cls, context):
+        return hasattr(context, "idref_data")
+
+    def execute(self, context):
+        data = getattr(context, "idref_data")
+        prop = self.prop
+        setattr(data, prop, None)
+        return {'FINISHED'}
+
+def template_IDRef(layout, data, prop, new="", unlink=""):
+    epropname = "{}__enum".format(prop)
+    rnaprop = data.bl_rna.properties[epropname]
+    
+    row = layout.row(align=True)
+    row.label(rnaprop.name)
+    row.prop(data, epropname, text="")
+
+    # set data for the operator
+    row.context_pointer_set("idref_data", data)
+
+    if not unlink:
+        unlink = "distant_worlds.clear_idref"
+    opprops = row.operator(unlink, text="", icon='X')
+    opprops.prop = prop
+
+
+def register():
+    bpy.utils.register_class(ClearIDRefProperty)
+
+def unregister():
+    bpy.utils.unregister_class(ClearIDRefProperty)

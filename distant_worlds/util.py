@@ -18,10 +18,7 @@
 
 # <pep8 compliant>
 
-import bpy, re
-
-def get_dw(context):
-    return context.scene.distant_worlds if context.scene else None
+import bpy, re, inspect
 
 def increment_name(name):
     m = re.match(r"(.*[.^\d])([0]*)(\d+)", name)
@@ -47,3 +44,10 @@ def unique_name(collection, item, get_name=lambda x: x.name, next_name=increment
     while name in name_set:
         name = next_name(name)
     return name
+
+
+def is_sequence(arg):
+    return (hasattr(arg, "__getitem__") or hasattr(arg, "__iter__"))
+
+def funcname(func):
+    return dict(inspect.getmembers(func))['__name__']
