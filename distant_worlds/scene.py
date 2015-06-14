@@ -32,6 +32,15 @@ from distant_worlds.objects import *
 # Properties
 
 class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
+    @property
+    def dw(self):
+        return self.id_data.distant_worlds
+
+    uid = IntProperty(name="Unique Identifier",
+                      min=0,
+                      options={'HIDDEN'},
+                      )
+
     #orbit_params = PointerProperty(name="Orbital Parameters", type=DistantWorldsOrbitParams) # created in register()
 
     def verify_body_object(self):
@@ -43,6 +52,10 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
         ob = self.path_object
         if ob:
             path_object_verify(ob, self)
+
+    def verify_all(self):
+        self.verify_body_object()
+        self.verify_path_object()
 
     def body_object_update(self, context):
         self.verify_body_object()
@@ -69,25 +82,89 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
                                   update=path_object_update,
                                   )
 
+    def parent_body_uid_update(self, context):
+        self.verify_all()
+    parent_body_uid = IntProperty(name="Parent Body UID",
+                                  description="Unique identifier of the parent body",
+                                  default=0,
+                                  update=parent_body_uid_update,
+                                  )
     @property
-    def dw(self):
-        return self.id_data.distant_worlds
+    def parent_body(self):
+        return self.dw.find_body_uid(self.parent_body_uid)
 
-    def name_update(self, context):
-        # modify id property directly, to avoid infinte update loop
+    @property
+    def ancestors(self):
+        parent = self.parent_body
+        while parent:
+            yield parent
+            parent = parent.parent_body
+
+    @property
+    def descendants(self):
+        found = {self}
+        visited = {self}
+        def visit(body):
+            visited.add(body)
+            
+            parent = body.parent_body
+            if parent:
+                if parent not in visited:
+                    visit(parent)
+                if parent in found:
+                    found.add(body)
+
+        for body in self.dw.bodies:
+            if body not in visited:
+                visit(body)
+        found.remove(self)
+        return found
+
+    def body_enum_items(self, bodies=None, allow_null=False):
+        if bodies is None:
+            bodies = self.dw.bodies
+        items = []
+        if allow_null:
+            items.append( ('0', "", "", 'NONE', 0) )
+        for body in bodies:
+            items.append( (str(body.uid), body.name, "", 'NONE', body.uid) )
+        return items
+
+    def parent_body_enum_items(self, context):
+        bodies = set(self.dw.bodies) - {self} - self.descendants
+        return self.body_enum_items(bodies, allow_null=True)
+    def parent_body_enum_get(self):
+        return self.parent_body_uid
+    def parent_body_enum_set(self, value):
+        self.parent_body_uid = value
+    parent_body_enum = EnumProperty(name="Parent Body",
+                                    description="Primary gravitational influence",
+                                    items=parent_body_enum_items,
+                                    get=parent_body_enum_get,
+                                    set=parent_body_enum_set,
+                                    )
+
+    def name_get(self):
+        return self.get('name', "")
+    def name_set(self, value):
+        self['name'] = value
         self['name'] = unique_name(self.dw.bodies, self)
-
-    name = StringProperty(name="Name", description="Name of the body", update=name_update)
+    name = StringProperty(name="Name", description="Name of the body", get=name_get, set=name_set)
 
     def param_update(self, context):
-        self.verify_body_object()
-        self.verify_path_object()
+        self.verify_all()
 
     def draw(self, context, layout):
         # needed for escalating update calls back to the body
         layout.context_pointer_set("distant_worlds_body", self)
 
-        layout.prop(self, "name")
+        layout.prop(self, "name", text="")
+
+        layout.separator()
+
+        layout.prop(self, "parent_body_enum")
+
+        layout.label("Objects:")
         template_IDRef(layout, self, "body_object")
         template_IDRef(layout, self, "path_object")
         col = layout.column(align=True)
@@ -157,27 +234,115 @@ class DistantWorldsTimeSettings(PropertyGroup):
 
 class DistantWorldsScene(PropertyGroup):
     #bodies = CollectionProperty(type=DistantWorldsBody) # created in register()
-    active_body = IntProperty(name="Active Body", description="Index of the selected body", default=0)
+    active_body_index = IntProperty(name="Active Body", description="Index of the selected body", default=0)
+
+    @property
+    def active_body(self):
+        if self.active_body_index >= 0 and self.active_body_index < len(self.bodies):
+            return self.bodies[self.active_body_index]
+        else:
+            return None
+
+    def gen_body_uid(self):
+        uid = self.get('bodies_uid', 0) + 1
+        self['bodies_uid'] = uid
+        return uid
 
     def add_body(self, name):
         body = self.bodies.add()
         body.name = name
+        body.uid = self.gen_body_uid()
 
-    def remove_body(self, name):
-        body = self.bodies.get(name, None)
+    def body_index(self, body):
+        for i, b in enumerate(self.bodies):
+            if b == body:
+                return i
+        return -1
+
+    def remove_body(self, body):
         if body:
-            self.bodies.remove(body)
+            index = self.body_index(body)
+            self.bodies.remove(index)
+
+            if index < self.active_body_index:
+                self.active_body_index -= 1
+
+    def find_body_uid(self, uid):
+        for body in self.bodies:
+            if body.uid == uid:
+                return body
+        return None
+
+    def get_sorted_body_indices(self):
+        bodies = self.bodies
+        num_bodies = len(bodies)
+
+        parent_map = { body : [] for body in bodies }
+        for index, body in enumerate(bodies):
+            parent = body.parent_body
+            if parent:
+                parent_map[parent].append((body, index))
+        
+        def get_indices(parent, index):
+            yield index
+            for child, childindex in parent_map[parent]:
+                for i in get_indices(child, childindex):
+                    yield i
+
+        index_map = []
+        for index, root in enumerate(bodies):
+            if not root.parent_body:
+                for i in get_indices(root, index):
+                    index_map.append(i)
+        neworder = [0] * num_bodies
+        for new, old in enumerate(index_map):
+            neworder[old] = new
+
+        return neworder
+
+        '''
+        index_map = []
+        for index, root in enumerate(bodies):
+            if not root.parent_body:
+                for i in get_indices(root, index):
+                    index_map.append(i)
+
+        for new in range(num_bodies):
+            old = index_map[new]
+            
+            # move body data in the collection
+            bodies.move(old, new)
+            
+            # adjust remaining indices
+            for i in range(new+1, num_bodies):
+                if index_map[i] >= new and index_map[i] < old:
+                    index_map[i] += 1
+        '''
 
     def draw_bodies(self, context, layout):
+        active_body = self.active_body
+
         layout.operator_context = 'INVOKE_DEFAULT'
-        layout.operator("distant_worlds.load_default_bodies")
-        layout.template_list("DISTANT_WORLDS_UL_bodies", "", self, "bodies", self, "active_body")
+        layout.operator("distant_worlds.add_body")
+        row = layout.row()
+        row.context_pointer_set("distant_worlds_body", active_body)
+        row.operator("distant_worlds.remove_body")
 
+        '''
+        body_stack = self.sorted_bodies(self.bodies)
+        def draw_body_stack(stack, layout):
+            box = layout.box()
+            stack[0].draw(context, box)
+            for child_stack in stack[1]:
+                draw_body_stack(child_stack, box)
+
+        for stack in body_stack:
+            draw_body_stack(stack, layout)
+        '''
+        layout.template_list("DISTANT_WORLDS_UL_bodies", "", self, "bodies", self, "active_body_index")
         layout.separator()
-
-        if self.active_body >= 0 and self.active_body < len(self.bodies):
-            act_body = self.bodies[self.active_body]
-            act_body.draw(context, layout)
+        if active_body:
+            active_body.draw(context, layout)
 
     #time = PointerProperty(type=DistantWorldsTimeSettings) # created in register()
 
@@ -192,11 +357,21 @@ class DistantWorldsScene(PropertyGroup):
 
 class DistantWorldsBodiesUIList(UIList):
     bl_idname = "DISTANT_WORLDS_UL_bodies"
+
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index, flt_flag):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            for parent in item.ancestors:
+                layout.separator()
+
             layout.prop(item, "name", text="", icon_value=icon, emboss=False)
+        
         elif self.layout_type in {'GRID'}:
             layout.label(icon_value=icon)
+
+    def filter_items(self, context, data, prop):
+        neworder = data.get_sorted_body_indices()
+        return [], neworder
+
 
 # -----------------------------------------------------------------------------
 # Operators
@@ -217,10 +392,10 @@ class DistantWorldsOperator_ApplyTimeSettings(bpy.types.Operator):
         return {'FINISHED'}
 '''
 
-class DistantWorldsOperator_LoadDefaultBodies(bpy.types.Operator):
-    """Load default Distant Worlds bodies setup"""
-    bl_idname = "distant_worlds.load_default_bodies"
-    bl_label = "Load Default Bodies"
+class DistantWorldsOperator_AddBody(bpy.types.Operator):
+    """Add Distant Worlds body"""
+    bl_idname = "distant_worlds.add_body"
+    bl_label = "Add Body"
 
     name = StringProperty(name="Name", description="Name of the body", default="Planet")
 
@@ -231,6 +406,21 @@ class DistantWorldsOperator_LoadDefaultBodies(bpy.types.Operator):
     def execute(self, context):
         dw = context.scene.distant_worlds
         dw.add_body(self.name)
+        return {'FINISHED'}
+
+class DistantWorldsOperator_RemoveBody(bpy.types.Operator):
+    """Remove Distant Worlds body"""
+    bl_idname = "distant_worlds.remove_body"
+    bl_label = "Remove Body"
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene and context.scene.distant_worlds and \
+               hasattr(context, "distant_worlds_body") and context.distant_worlds_body
+
+    def execute(self, context):
+        dw = context.scene.distant_worlds
+        dw.remove_body(context.distant_worlds_body)
         return {'FINISHED'}
 
 # -----------------------------------------------------------------------------
@@ -280,13 +470,15 @@ def register():
                                                      description="Settings for the Distant Worlds addon",
                                                      type=DistantWorldsScene)
 
-    bpy.utils.register_class(DistantWorldsOperator_LoadDefaultBodies)
+    bpy.utils.register_class(DistantWorldsOperator_AddBody)
+    bpy.utils.register_class(DistantWorldsOperator_RemoveBody)
     bpy.utils.register_class(DistantWorldsBodiesUIList)
     bpy.utils.register_class(DistantWorldsPanelSceneBodies)
     bpy.utils.register_class(DistantWorldsPanelSceneTime)
 
 def unregister():
-    bpy.utils.unregister_class(DistantWorldsOperator_LoadDefaultBodies)   
+    bpy.utils.unregister_class(DistantWorldsOperator_AddBody)   
+    bpy.utils.unregister_class(DistantWorldsOperator_RemoveBody)
     bpy.utils.unregister_class(DistantWorldsBodiesUIList)
     bpy.utils.unregister_class(DistantWorldsPanelSceneBodies)
     bpy.utils.unregister_class(DistantWorldsPanelSceneTime)
