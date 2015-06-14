@@ -45,12 +45,13 @@ class IDReference(PropertyGroup):
     idlib = StringProperty(name="Library path", description="File path of the ID library")
 '''
 
-def IDRefProperty(name, description, type, update=None):
+def IDRefProperty(name, description, type, update=None, poll=None):
     return (IDRefProperty, {
         'name' : name,
         'description' : description,
         'type' : type,
         'update' : update,
+        'poll' : poll,
         })
 
 def _find_id(rna_type, data_prop, name, lib):
@@ -72,6 +73,7 @@ def make_id_ref_property(attr, **kw):
     idtype = kw['type']
     rna_type, data_prop = _idtypes[idtype]
     update = kw.get('update', None)
+    poll = kw.get('poll', None)
 
     def fget(self):
         props = self.get(attr, None)
@@ -86,6 +88,7 @@ def make_id_ref_property(attr, **kw):
         if not props:
             self[attr] = {}
             props = self[attr]
+
         if value is None:
             props['idname'] = ""
             props['idlib'] = ""
@@ -95,6 +98,8 @@ def make_id_ref_property(attr, **kw):
         else:
             if not isinstance(value, rna_type):
                 raise ValueError("Invalid ID type %s, expected %s" % (value.bl_rna.identifier, rna_type.bl_rna.identifier))
+            elif poll and not poll(value):
+                raise ValueError("Invalid ID datablock %r" % value)
 
             props['idname'] = value.name
             props['idlib'] = value.library.filepath if value.library else ""
@@ -111,6 +116,7 @@ def make_id_ref_property(attr, **kw):
 def make_id_ref_enum(attr, **kw):
     idtype = kw['type']
     rna_type, data_prop = _idtypes[idtype]
+    poll = kw.get('poll', None)
 
     def enum_uid(name, lib):
         m = hashlib.md5()
@@ -128,6 +134,8 @@ def make_id_ref_enum(attr, **kw):
         items = [(uid_none, "", "", 0, index_none)]
         data = getattr(context.blend_data, data_prop, [])
         for ptr in data:
+            if poll and not poll(self, ptr):
+                continue
             name = ptr.name
             lib = ptr.library.filepath if ptr.library else ""
             uid, index = enum_uid(name, lib)

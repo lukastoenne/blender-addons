@@ -22,11 +22,7 @@ from math import *
 import bpy
 from bpy.types import PropertyGroup
 from bpy.props import *
-from distant_worlds.driver import *
-
-@body_driver_function
-def get_body_orbit_loc(body):
-    return body.orbit_params.get_location() if body else Vector((0,0,0))
+from mathutils import *
 
 # Orbital parameters and settings
 class DistantWorldsOrbitParams(PropertyGroup):
@@ -56,12 +52,28 @@ class DistantWorldsOrbitParams(PropertyGroup):
                                  update=param_update,
                                  )
 
+    # Options
+    use_scene_time = BoolProperty(name="Use Scene Time",
+                                  description="Move the body during animation",
+                                  default=True,
+                                  update=param_update
+                                  )
+
     # TODO
     # mean anomaly at epoch
     mean_anomaly_epoch = 0.0
 
     # TODO
     mean_motion = 1.0
+
+    @property
+    def focus(self):
+        return self.semimajor * self.eccentricity
+
+    @property
+    def semiminor(self):
+        e = self.eccentricity
+        return self.semimajor * sqrt(1.0 - e*e)
 
     def mean_anomaly(self, time):
         return time * self.mean_motion + self.mean_anomaly_epoch
@@ -80,8 +92,16 @@ class DistantWorldsOrbitParams(PropertyGroup):
         v = self.true_anomaly(time)
         return self.semimajor * (1.0 - e*e) / (1.0 + e * cos(v))
 
+    @property
+    def current_time(self):
+        if self.use_scene_time:
+            return self.dw.current_sim_time
+        else:
+            # TODO use custom time
+            return 0.0
+
     def get_location(self):
-        time = self.dw.current_sim_time
+        time = self.current_time
         v = self.true_anomaly(time)
         r = self.distance(time)
         p = Vector(( sin(v), cos(v), 0 )) * r

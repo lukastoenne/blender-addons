@@ -26,21 +26,23 @@ from distant_worlds.util import *
 from distant_worlds.idmap import *
 from distant_worlds.orbit import *
 from distant_worlds.driver import *
+from distant_worlds.objects import *
 
 # -----------------------------------------------------------------------------
 # Properties
 
 class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
+    #orbit_params = PointerProperty(name="Orbital Parameters", type=DistantWorldsOrbitParams) # created in register()
+
     def verify_body_object(self):
         ob = self.body_object
-        if not ob:
-            return
-        make_body_driver(ob, "location", get_body_orbit_loc, self)
+        if  ob:
+            body_object_verify(ob, self)
 
     def verify_path_object(self):
         ob = self.path_object
-        if not ob:
-            return
+        if ob:
+            path_object_verify(ob, self)
 
     def body_object_update(self, context):
         self.verify_body_object()
@@ -48,14 +50,24 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
                                 description="Main object representing the body",
                                 type='Object',
                                 update=body_object_update,
+                                poll=lambda _,x: body_object_poll(x),
                                 )
     def path_object_update(self, context):
         self.verify_path_object()
     path_object = IDRefProperty(name="Path Object",
                                 description="Curve object for the body's path",
                                 type='Object',
-                                update=body_object_update,
+                                update=path_object_update,
+                                poll=lambda _,x: path_object_poll(x),
                                 )
+    path_resolution = IntProperty(name="Path Resolution",
+                                  description="Number of path curve control points",
+                                  default=16,
+                                  min=3,
+                                  soft_min=3,
+                                  soft_max=64,
+                                  update=path_object_update,
+                                  )
 
     @property
     def dw(self):
@@ -78,6 +90,9 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
         layout.prop(self, "name")
         template_IDRef(layout, self, "body_object")
         template_IDRef(layout, self, "path_object")
+        col = layout.column(align=True)
+        col.enabled = bool(self.path_object)
+        col.prop(self, "path_resolution")
 
         layout.separator()
 

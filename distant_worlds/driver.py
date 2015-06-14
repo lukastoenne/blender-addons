@@ -63,13 +63,3 @@ def make_body_driver(data, prop, func, body):
         else:
             #drv.expression = "exec('print(globals())')"
             drv.expression = "distant_worlds.{}({!r})[{}]".format(funcname(func), body.name, index)
- 
-    #var = drv.variables.new()
-    #var.name = 'x'
-    #var.type = 'TRANSFORMS'
- 
-#    targ = var.targets[0]
-#    targ.id = rig
-#    targ.transform_type = 'LOC_X'
-#    targ.bone_target = 'Driver'
-#    targ.use_local_space_transform = True
