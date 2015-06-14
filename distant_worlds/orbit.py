@@ -24,6 +24,41 @@ from bpy.types import PropertyGroup
 from bpy.props import *
 from mathutils import *
 
+def newton_raphson(f, df, x0, epsilon, maxiter=100):
+    x = x0
+    y = f(x)
+    dy = df(x)
+    i = 0
+    while abs(y) > epsilon and dy != 0.0 and i < maxiter:
+        x = x - y / dy
+        y = f(x)
+        dy = df(x)
+    return x
+
+def debug_object_angle(name, angle, loc=Vector((0,0,0))):
+    ob = bpy.data.objects.get(name, None)
+    if not ob:
+        return
+    #print("DEBUG %s is %f" % (ob.name, angle))
+    mloc, mrot, mscale = ob.matrix_world.decompose()
+    mscale_mat = Matrix.Identity(4)
+    mscale_mat[0][0] = mscale[0]
+    mscale_mat[1][1] = mscale[1]
+    mscale_mat[2][2] = mscale[2]
+    ob.matrix_world =   Matrix.Translation(Vector(loc)) \
+                      * Matrix.Rotation(angle, 4, 'Z') \
+                      * Matrix.Rotation(radians(90.0), 4, 'X') \
+                      * mscale_mat
+
+def debug_object_scale(name, scale):
+    ob = bpy.data.objects.get(name, None)
+    if not ob:
+        return
+    mloc, mrot, mscale = ob.matrix_world.decompose()
+    ob.matrix_world =   Matrix.Translation(mloc) \
+                      * mrot.to_matrix().to_4x4() \
+                      * Matrix.Scale(scale, 4)
+
 # Orbital parameters and settings
 class DistantWorldsOrbitParams(PropertyGroup):
     @property
@@ -76,21 +111,37 @@ class DistantWorldsOrbitParams(PropertyGroup):
         return self.semimajor * sqrt(1.0 - e*e)
 
     def mean_anomaly(self, time):
-        return time * self.mean_motion + self.mean_anomaly_epoch
+        M = time * self.mean_motion + self.mean_anomaly_epoch
+        debug_object_angle("mean_anomaly", M, Vector((0,self.focus,0)))
+        return M
 
     def eccentric_anomaly(self, time):
-        # TODO requires a Newton-Raphson solver step
-        return self.mean_anomaly(time)
+        # use a Newton-Raphson solver to solve Kepler's equation:
+        # M = E - e*sin(E)
+
+        M = self.mean_anomaly(time)
+        e = self.eccentricity
+
+        f = lambda E: E - e * sin(E) - M
+        df = lambda E: 1.0 - e * cos(E)
+
+        E = newton_raphson(f, df, M, radians(0.1))
+        debug_object_angle("eccentric_anomaly", E, Vector((0,self.focus,0)))
+        return E
 
     def true_anomaly(self, time):
         E = self.eccentric_anomaly(time)
         e = self.eccentricity
-        return 2.0 * atan2(sqrt(1.0 - e) * cos(E * 0.5), sqrt(1.0 + e) * sin(E * 0.5))
+        v = 2.0 * atan2(sqrt(1.0 + e) * sin(E * 0.5), sqrt(1.0 - e) * cos(E * 0.5))
+        debug_object_angle("true_anomaly", v)
+        return v
 
     def distance(self, time):
         e = self.eccentricity
         v = self.true_anomaly(time)
-        return self.semimajor * (1.0 - e*e) / (1.0 + e * cos(v))
+        d = self.semimajor * (1.0 - e*e) / (1.0 + e * cos(v))
+        debug_object_scale("true_anomaly", d)
+        return d
 
     @property
     def current_time(self):
@@ -104,7 +155,7 @@ class DistantWorldsOrbitParams(PropertyGroup):
         time = self.current_time
         v = self.true_anomaly(time)
         r = self.distance(time)
-        p = Vector(( sin(v), cos(v), 0 )) * r
+        p = Vector(( sin(v), -cos(v), 0 )) * r
         return p
 
     def draw(self, context, layout):

@@ -66,14 +66,13 @@ def path_ellipsis(body, eta):
     orbit = body.orbit_params
     x = orbit.semiminor * sin(eta)
     y = orbit.semimajor * cos(eta) - orbit.focus
-    return Vector((x, y, 0.0))
-
+    return Vector((x, -y, 0.0))
 
 def path_tangent(body, eta):
     orbit = body.orbit_params
     dx = orbit.semiminor * cos(eta)
     dy = -orbit.semimajor * sin(eta)
-    return Vector((dx, dy, 0.0))
+    return Vector((dx, -dy, 0.0))
 
 # calculates bezier curve approximation of an ellipse, based on
 # http://www.spaceroots.org/documents/ellipse/node22.html
