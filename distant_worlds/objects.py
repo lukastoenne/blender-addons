@@ -41,7 +41,10 @@ class DistantWorldsObject(PropertyGroup):
 
 @body_driver_function
 def get_body_orbit_loc(body):
-    return body.orbit_params.get_location() if body else Vector((0,0,0))
+    if not body:
+        return Vector((0,0,0))
+    orbit = body.orbit_params
+    return orbit.matrix_world * orbit.location(orbit.current_time)
 
 def body_object_poll(ob):
     if ob.type == 'MESH':
@@ -113,7 +116,8 @@ def path_object_verify(ob, body):
         return False
 
     # init curve data
-    ob.matrix_world = Matrix.Identity(4)
+    orbit = body.orbit_params
+    ob.matrix_world = orbit.matrix_world
     curve = ob.data
     curve.dimensions = '2D'
     splines = curve.splines

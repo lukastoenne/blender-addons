@@ -87,12 +87,50 @@ class DistantWorldsOrbitParams(PropertyGroup):
                                  update=param_update,
                                  )
 
+    inclination = FloatProperty(name="Inclination",
+                                description="Vertical tilt of the path",
+                                subtype='ANGLE',
+                                default=radians(0.0),
+                                min=radians(-90.0),
+                                max=radians(+90.0),
+                                soft_min=radians(-90.0),
+                                soft_max=radians(+90.0),
+                                update=param_update,
+                                )
+
+    ascending_node = FloatProperty(name="Ascending Node",
+                                   description="Longitude of the ascending node",
+                                   subtype='ANGLE',
+                                   default=radians(0.0),
+                                   min=radians(0.0),
+                                   max=radians(360.0),
+                                   soft_min=radians(0.0),
+                                   soft_max=radians(360.0),
+                                   update=param_update,
+                                   )
+
+    periapsis_argument = FloatProperty(name="Argument of the Periapsis",
+                                       description="Orientation of the path in the orbital plane",
+                                       subtype='ANGLE',
+                                       default=radians(0.0),
+                                       min=radians(0.0),
+                                       max=radians(360.0),
+                                       soft_min=radians(0.0),
+                                       soft_max=radians(360.0),
+                                       update=param_update,
+                                       )
+
     # Options
     use_scene_time = BoolProperty(name="Use Scene Time",
                                   description="Move the body during animation",
                                   default=True,
                                   update=param_update
                                   )
+    use_orbital_plane = BoolProperty(name="Use Orbital Plane",
+                                     description="Use path rotation out of the reference plane",
+                                     default=True,
+                                     update=param_update
+                                     )
 
     # TODO
     # mean anomaly at epoch
@@ -100,6 +138,23 @@ class DistantWorldsOrbitParams(PropertyGroup):
 
     # TODO
     mean_motion = 1.0
+
+    @property
+    def matrix_orbit(self):
+        """Transformation from the orbital plane to the reference plane"""
+        if self.use_orbital_plane:
+            mat_w = Matrix.Rotation(self.periapsis_argument, 3, 'Z')
+            mat_i = Matrix.Rotation(self.inclination, 3, 'X')
+            mat_a = Matrix.Rotation(self.ascending_node, 3, 'Z')
+            return (mat_a * mat_i * mat_w).to_4x4()
+        else:
+            return Matrix.Identity(4)
+
+    @property
+    def matrix_world(self):
+        # TODO: here we could apply additional transform based on
+        # parent bodies (for moons) and observational point
+        return self.matrix_orbit
 
     @property
     def focus(self):
@@ -143,6 +198,12 @@ class DistantWorldsOrbitParams(PropertyGroup):
         debug_object_scale("true_anomaly", d)
         return d
 
+    def location(self, time):
+        v = self.true_anomaly(time)
+        r = self.distance(time)
+        p = Vector(( sin(v), -cos(v), 0 )) * r
+        return p
+
     @property
     def current_time(self):
         if self.use_scene_time:
@@ -151,16 +212,18 @@ class DistantWorldsOrbitParams(PropertyGroup):
             # TODO use custom time
             return 0.0
 
-    def get_location(self):
-        time = self.current_time
-        v = self.true_anomaly(time)
-        r = self.distance(time)
-        p = Vector(( sin(v), -cos(v), 0 )) * r
-        return p
-
     def draw(self, context, layout):
         layout.prop(self, "semimajor")
         layout.prop(self, "eccentricity", slider=True)
+
+        layout.separator()
+
+        layout.prop(self, "use_orbital_plane")
+        col = layout.column(align=True)
+        col.enabled = self.use_orbital_plane
+        col.prop(self, "inclination", slider=True)
+        col.prop(self, "ascending_node", slider=True)
+        col.prop(self, "periapsis_argument", slider=True)
 
 def register():
     bpy.utils.register_class(DistantWorldsOrbitParams)
