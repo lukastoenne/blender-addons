@@ -20,8 +20,9 @@
 
 from math import *
 import bpy
-from bpy.types import Operator, Panel, PropertyGroup, UIList
+from bpy.types import Menu, Operator, Panel, PropertyGroup, UIList
 from bpy.props import *
+from bl_operators.presets import AddPresetBase
 from distant_worlds.util import *
 from distant_worlds.idmap import *
 from distant_worlds.body import *
@@ -83,9 +84,10 @@ class DistantWorldsTimeSettings(PropertyGroup):
         col.prop(self, "time_exponent")
 
 class DistantWorldsScene(PropertyGroup):
+    #### Bodies Collection ####
+
     #bodies = CollectionProperty(type=DistantWorldsBody) # created in register()
 
-    # activate the 
     def active_body_index_update(self, context):
         scene = self.id_data
         act = scene.objects.active
@@ -126,6 +128,7 @@ class DistantWorldsScene(PropertyGroup):
         body = self.bodies.add()
         body.name = name
         body.uid = self.gen_body_uid()
+        return body
 
     def body_index(self, body):
         for i, b in enumerate(self.bodies):
@@ -140,6 +143,9 @@ class DistantWorldsScene(PropertyGroup):
 
             if index < self.active_body_index:
                 self.active_body_index -= 1
+
+    def clear_bodies(self):
+        self.bodies.clear()
 
     def find_body_uid(self, uid):
         for body in self.bodies:
@@ -192,6 +198,8 @@ class DistantWorldsScene(PropertyGroup):
         if active_body:
             active_body.draw(context, layout)
 
+    #### Time Properties ####
+
     #time = PointerProperty(type=DistantWorldsTimeSettings) # created in register()
 
     @property
@@ -202,6 +210,21 @@ class DistantWorldsScene(PropertyGroup):
     @property
     def current_sim_time(self):
         return self.current_scene_time * self.time.time_scale + self.time.epoch
+
+    #### Serialization ####
+
+    def write_preset_py(self, file_preset):
+        file_preset.write("dw.clear_bodies()\n")
+
+        # we create all basic bodies first, so they can reference each other
+        for body in self.bodies:
+            file_preset.write("body{uid} = dw.add_body({name!r})\n".format(uid=body.uid, name=body.name))
+
+        # now write all the properties
+        for body in self.bodies:
+            file_preset.write("body = body{uid}\n".format(uid=body.uid))
+            body.write_preset_py(file_preset)
+            file_preset.write("\n")
 
 
 # -----------------------------------------------------------------------------
@@ -255,6 +278,39 @@ class DistantWorldsOperator_RemoveBody(bpy.types.Operator):
         return {'FINISHED'}
 
 # -----------------------------------------------------------------------------
+# Presets
+
+class DistantWorldsPresetsMenu(Menu):
+    bl_idname = "distant_worlds.presets_menu"
+    bl_label = "Distant Worlds Presets"
+    preset_subdir = "distant_worlds"
+    preset_operator = "script.execute_preset"
+    draw = Menu.draw_preset
+
+class DistantWorldsAddPreset(AddPresetBase, Operator):
+    bl_idname = "distant_worlds.add_preset"
+    bl_label = "Add Distant Worlds Preset"
+    preset_subdir = "distant_worlds"
+    preset_menu = "distant_worlds.presets_menu"
+
+    preset_defines = [
+        "scene = bpy.context.scene",
+        "dw = scene.distant_worlds",
+    ]
+
+    preset_values = []
+
+    # our own version of write_preset_py, adding a print call
+    def write_preset_py(self, file_preset):
+        scene = bpy.context.scene
+        dw = scene.distant_worlds
+
+        # call the original implementation to serialize preset_values
+        AddPresetBase.write_preset_py(self, file_preset)
+
+        dw.write_preset_py(file_preset)
+
+# -----------------------------------------------------------------------------
 # GUI
 
 class DistantWorldsPanelSceneBodies(Panel):
@@ -266,9 +322,19 @@ class DistantWorldsPanelSceneBodies(Panel):
     bl_context = "scene"
 
     def draw(self, context):
+        layout = self.layout
+
+        row = layout.row().split()
+        sub = row.row(align=True).split(align=True, percentage=0.75)
+        sub.menu("distant_worlds.presets_menu", text=DistantWorldsPresetsMenu.bl_label)
+        sub.operator("distant_worlds.add_preset", text="", icon='ZOOMIN')
+        sub.operator("distant_worlds.add_preset", text="", icon='ZOOMOUT').remove_active = True
+
+        layout.separator()
+
         dw = context.scene.distant_worlds
         if dw:
-            dw.draw_bodies(context, self.layout)
+            dw.draw_bodies(context, layout)
 
 class DistantWorldsPanelSceneTime(Panel):
     """Distant Worlds Time"""
@@ -299,12 +365,16 @@ def register():
 
     bpy.utils.register_class(DistantWorldsOperator_AddBody)
     bpy.utils.register_class(DistantWorldsOperator_RemoveBody)
+    bpy.utils.register_class(DistantWorldsPresetsMenu)
+    bpy.utils.register_class(DistantWorldsAddPreset)
     bpy.utils.register_class(DistantWorldsPanelSceneBodies)
     bpy.utils.register_class(DistantWorldsPanelSceneTime)
 
 def unregister():
     bpy.utils.unregister_class(DistantWorldsOperator_AddBody)   
     bpy.utils.unregister_class(DistantWorldsOperator_RemoveBody)
+    bpy.utils.unregister_class(DistantWorldsAddPreset)
+    bpy.utils.unregister_class(DistantWorldsPresetsMenu)
     bpy.utils.unregister_class(DistantWorldsPanelSceneBodies)
     bpy.utils.unregister_class(DistantWorldsPanelSceneTime)
 

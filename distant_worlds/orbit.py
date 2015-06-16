@@ -66,7 +66,9 @@ class DistantWorldsOrbitParams(PropertyGroup):
         return self.id_data.distant_worlds
 
     def param_update(self, context):
-        context.distant_worlds_body.param_update(context)
+        body = getattr(context, "distant_worlds_body", None)
+        if body:
+            body.param_update(context)
 
     semimajor = FloatProperty(name="Semimajor Axis",
                               description="Length of the semimajor axis",
@@ -220,6 +222,22 @@ class DistantWorldsOrbitParams(PropertyGroup):
         else:
             # TODO use custom time
             return 0.0
+
+    #### Serialization ####
+    
+    def write_preset_py(self, file_preset):
+        props = ["semimajor",
+                 "eccentricity",
+                 "inclination",
+                 "ascending_node",
+                 "periapsis_argument",
+                 "use_scene_time",
+                 "use_orbital_plane",
+                 "mean_anomaly_epoch",
+                 "mean_motion",
+                 ]
+        for p in props:
+            file_preset.write("orbit.{prop} = {value}\n".format(prop=p, value=getattr(self, p)))
 
     def draw(self, context, layout):
         layout.prop(self, "semimajor")

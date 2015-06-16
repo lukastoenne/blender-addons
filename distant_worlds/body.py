@@ -60,6 +60,8 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
     def matrix_equator_world(self):
         return self.matrix_refplane_world * self.orbit_params.matrix_equator_refplane
 
+    #### Objects ####
+
     def verify_body_object(self):
         ob = self.body_object
         if  ob:
@@ -106,6 +108,8 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
             ob = getattr(self, prop, None)
             if ob:
                 yield ob
+
+    #### Parent Body ####
 
     def parent_body_uid_update(self, context):
         self.verify_all()
@@ -169,12 +173,31 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
                                     set=parent_body_enum_set,
                                     )
 
+    #### Name ####
+
     def name_get(self):
         return self.get('name', "")
     def name_set(self, value):
         self['name'] = value
         self['name'] = unique_name(self.dw.bodies, self)
     name = StringProperty(name="Name", description="Name of the body", get=name_get, set=name_set)
+
+    #### Serialization ####
+    
+    def write_preset_py(self, file_preset):
+        props = ["path_resolution"]
+        for p in props:
+            file_preset.write("body.{prop} = {value}\n".format(prop=p, value=getattr(self, p)))
+        
+        # map to the new body instance uid
+        parent = self.parent_body
+        if parent:
+            file_preset.write("body.parent_body_uid = body{uid}.uid\n".format(uid=parent.uid))
+
+        file_preset.write("orbit = body.orbit_params\n")
+        self.orbit_params.write_preset_py(file_preset)
+
+    #### UI ####
 
     def param_update(self, context):
         self.verify_all()
