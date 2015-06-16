@@ -300,14 +300,18 @@ class DistantWorldsScene(PropertyGroup):
     def draw_bodies(self, context, layout):
         active_body = self.active_body
 
-        layout.operator_context = 'INVOKE_DEFAULT'
-        layout.operator("distant_worlds.add_body")
         row = layout.row()
-        row.context_pointer_set("distant_worlds_body", active_body)
-        row.operator("distant_worlds.remove_body")
 
-        layout.template_list("DISTANT_WORLDS_UL_bodies", "", self, "bodies", self, "active_body_index")
+        row.template_list("DISTANT_WORLDS_UL_bodies", "", self, "bodies", self, "active_body_index", rows=4)
+
+        col = row.column(align=True)
+        col.operator("distant_worlds.add_body", icon='ZOOMIN', text="")
+        sub = col.column(align=True)
+        sub.context_pointer_set("distant_worlds_body", active_body)
+        sub.operator("distant_worlds.remove_body", icon='ZOOMOUT', text="")
+
         layout.separator()
+
         if active_body:
             active_body.draw(context, layout)
 
