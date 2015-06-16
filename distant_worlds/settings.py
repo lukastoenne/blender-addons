@@ -27,16 +27,16 @@ def load_post_handler(dummy):
     bpy.app.driver_namespace['distant_worlds'] = driver.driver_namespace
 
 @persistent
-def scene_update_post_handler(scene):
+def scene_update_pre_handler(scene):
     scene.distant_worlds.sync_active_body()
 
 def register():
     bpy.app.handlers.load_post.append(load_post_handler)
-    bpy.app.handlers.scene_update_post.append(scene_update_post_handler)
+    bpy.app.handlers.scene_update_post.append(scene_update_pre_handler)
 
 def unregister():
     bpy.app.handlers.load_post.remove(load_post_handler)
-    bpy.app.handlers.scene_update_post.remove(scene_update_post_handler)
+    bpy.app.handlers.scene_update_post.remove(scene_update_pre_handler)
 
 if __name__ == "__main__":
     register()

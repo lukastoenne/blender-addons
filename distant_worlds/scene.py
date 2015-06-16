@@ -83,6 +83,10 @@ class DistantWorldsTimeSettings(PropertyGroup):
         col.prop(self, "time_scale")
         col.prop(self, "time_exponent")
 
+# neat little trick to efficiently check for changed active object
+# based on http://blender.stackexchange.com/a/31544
+_scene_active_object_sync = None
+
 class DistantWorldsScene(PropertyGroup):
     #### Bodies Collection ####
 
@@ -112,12 +116,18 @@ class DistantWorldsScene(PropertyGroup):
 
     # Use the active object from the scene to activate associated bodies
     def sync_active_body(self):
+        global _scene_active_object_sync
+
         scene = self.id_data
         act = scene.objects.active
-        if act:
-            for index, body in enumerate(self.bodies):
-                if act in body.used_objects:
-                    self['active_body_index'] = index
+        if act == _scene_active_object_sync:
+            return
+        _scene_active_object_sync = act
+
+        for index, body in enumerate(self.bodies):
+            if act in body.used_objects:
+                self['active_body_index'] = index
+                break
 
     def gen_body_uid(self):
         uid = self.get('bodies_uid', 0) + 1
