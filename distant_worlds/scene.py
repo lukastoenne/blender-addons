@@ -224,9 +224,6 @@ class DistantWorldsTimeSettings(PropertyGroup):
                           description="Origin of the simulation time at frame 0",
                           )
 
-#    def apply_to_scene(self, scene):
-#        pass
-
     def draw(self, context, layout):
         col = layout.column(align=True)
         col.prop(self, "time_scale")
@@ -300,25 +297,6 @@ class DistantWorldsScene(PropertyGroup):
 
         return neworder
 
-        '''
-        index_map = []
-        for index, root in enumerate(bodies):
-            if not root.parent_body:
-                for i in get_indices(root, index):
-                    index_map.append(i)
-
-        for new in range(num_bodies):
-            old = index_map[new]
-            
-            # move body data in the collection
-            bodies.move(old, new)
-            
-            # adjust remaining indices
-            for i in range(new+1, num_bodies):
-                if index_map[i] >= new and index_map[i] < old:
-                    index_map[i] += 1
-        '''
-
     def draw_bodies(self, context, layout):
         active_body = self.active_body
 
@@ -328,17 +306,6 @@ class DistantWorldsScene(PropertyGroup):
         row.context_pointer_set("distant_worlds_body", active_body)
         row.operator("distant_worlds.remove_body")
 
-        '''
-        body_stack = self.sorted_bodies(self.bodies)
-        def draw_body_stack(stack, layout):
-            box = layout.box()
-            stack[0].draw(context, box)
-            for child_stack in stack[1]:
-                draw_body_stack(child_stack, box)
-
-        for stack in body_stack:
-            draw_body_stack(stack, layout)
-        '''
         layout.template_list("DISTANT_WORLDS_UL_bodies", "", self, "bodies", self, "active_body_index")
         layout.separator()
         if active_body:
