@@ -100,6 +100,14 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
                                   update=path_object_update,
                                   )
 
+    object_properties = {"body_object", "path_object"}
+    @property
+    def used_objects(self):
+        for prop in self.object_properties:
+            ob = getattr(self, prop, None)
+            if ob:
+                yield ob
+
     def parent_body_uid_update(self, context):
         self.verify_all()
     parent_body_uid = IntProperty(name="Parent Body UID",
@@ -249,7 +257,22 @@ class DistantWorldsTimeSettings(PropertyGroup):
 
 class DistantWorldsScene(PropertyGroup):
     #bodies = CollectionProperty(type=DistantWorldsBody) # created in register()
-    active_body_index = IntProperty(name="Active Body", description="Index of the selected body", default=0)
+
+    # activate the 
+    def active_body_index_update(self, context):
+        scene = self.id_data
+        act = scene.objects.active
+        body = self.active_body
+        if not body:
+            return
+        used_objects = [b for b in body.used_objects]
+        if used_objects and act not in used_objects:
+            scene.objects.active = used_objects[0]
+    active_body_index = IntProperty(name="Active Body",
+                                    description="Index of the selected body",
+                                    default=0,
+                                    update=active_body_index_update,
+                                    )
 
     @property
     def active_body(self):
@@ -257,6 +280,15 @@ class DistantWorldsScene(PropertyGroup):
             return self.bodies[self.active_body_index]
         else:
             return None
+
+    # Use the active object from the scene to activate associated bodies
+    def sync_active_body(self):
+        scene = self.id_data
+        act = scene.objects.active
+        if act:
+            for index, body in enumerate(self.bodies):
+                if act in body.used_objects:
+                    self['active_body_index'] = index
 
     def gen_body_uid(self):
         uid = self.get('bodies_uid', 0) + 1
