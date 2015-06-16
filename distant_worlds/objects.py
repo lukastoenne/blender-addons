@@ -40,11 +40,11 @@ class DistantWorldsObject(PropertyGroup):
 # Body Object
 
 @body_driver_function
-def get_body_orbit_loc(body):
+def get_body_location(body):
     if not body:
         return Vector((0,0,0))
     orbit = body.orbit_params
-    return orbit.matrix_world * orbit.location(orbit.current_time)
+    return body.matrix_orbit_world  * orbit.location(orbit.current_time)
 
 def body_object_poll(ob):
     if ob.type == 'MESH':
@@ -55,10 +55,21 @@ def body_object_verify(ob, body):
     if not body_object_poll(ob):
         return False
 
-    make_body_driver(ob, "location", get_body_orbit_loc, body)
+    make_body_driver(ob, "location", get_body_location, body)
 
 # -----------------------------------------------------------------------------
 # Path Object
+
+@body_driver_function
+def get_path_location(body):
+    if not body:
+        return Vector((0,0,0))
+    parent = body.parent_body
+    if parent:
+        orbit = parent.orbit_params
+        return orbit.location(orbit.current_time)
+    else:
+        return Vector((0,0,0))
 
 def path_object_poll(ob):
     if ob.type == 'CURVE':
@@ -117,7 +128,8 @@ def path_object_verify(ob, body):
 
     # init curve data
     orbit = body.orbit_params
-    ob.matrix_world = orbit.matrix_world
+    make_body_driver(ob, "location", get_path_location, body)
+
     curve = ob.data
     curve.dimensions = '2D'
     splines = curve.splines

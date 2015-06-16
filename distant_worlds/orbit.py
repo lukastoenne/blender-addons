@@ -137,10 +137,16 @@ class DistantWorldsOrbitParams(PropertyGroup):
     mean_anomaly_epoch = 0.0
 
     # TODO
-    mean_motion = 1.0
+    mean_motion = FloatProperty(name="Mean Motion",
+                                description="Mean motion in radians per unit time",
+                                default=radians(360.0),
+                                min=radians(0.0),
+                                soft_min=radians(0.0),
+                                update=param_update,
+                                )
 
     @property
-    def matrix_orbit(self):
+    def matrix_orbit_refplane(self):
         """Transformation from the orbital plane to the reference plane"""
         if self.use_orbital_plane:
             mat_w = Matrix.Rotation(self.periapsis_argument, 3, 'Z')
@@ -151,10 +157,13 @@ class DistantWorldsOrbitParams(PropertyGroup):
             return Matrix.Identity(4)
 
     @property
-    def matrix_world(self):
-        # TODO: here we could apply additional transform based on
-        # parent bodies (for moons) and observational point
-        return self.matrix_orbit
+    def matrix_equator_orbit(self):
+        """Transformation from the body's equator plane to the orbital plane"""
+        return Matrix.Identity(4)
+
+    @property
+    def matrix_equator_refplane(self):
+        return self.matrix_orbit_refplane * self.matrix_equator_orbit
 
     @property
     def focus(self):
@@ -224,6 +233,11 @@ class DistantWorldsOrbitParams(PropertyGroup):
         col.prop(self, "inclination", slider=True)
         col.prop(self, "ascending_node", slider=True)
         col.prop(self, "periapsis_argument", slider=True)
+
+        layout.separator()
+
+        col = layout.column(align=True)
+        col.prop(self, "mean_motion")
 
 def register():
     bpy.utils.register_class(DistantWorldsOrbitParams)

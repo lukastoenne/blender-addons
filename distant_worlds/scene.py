@@ -43,6 +43,24 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
 
     #orbit_params = PointerProperty(name="Orbital Parameters", type=DistantWorldsOrbitParams) # created in register()
 
+    @property
+    def matrix_refplane_world(self):
+        # apply additional transform based on parent bodies (for moons) and observational point
+        parent = self.parent_body
+        if parent:
+            parent_orbit = parent.orbit_params
+            return Matrix.Translation(parent_orbit.location(parent_orbit.current_time))
+        else:
+            return Matrix.Identity(4)
+
+    @property
+    def matrix_orbit_world(self):
+        return self.matrix_refplane_world * self.orbit_params.matrix_orbit_refplane
+
+    @property
+    def matrix_equator_world(self):
+        return self.matrix_refplane_world * self.orbit_params.matrix_equator_refplane
+
     def verify_body_object(self):
         ob = self.body_object
         if  ob:
