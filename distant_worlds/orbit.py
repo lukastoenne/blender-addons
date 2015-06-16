@@ -104,10 +104,8 @@ class DistantWorldsOrbitParams(PropertyGroup):
                                    description="Longitude of the ascending node",
                                    subtype='ANGLE',
                                    default=radians(0.0),
-                                   min=radians(0.0),
-                                   max=radians(360.0),
-                                   soft_min=radians(0.0),
-                                   soft_max=radians(360.0),
+                                   soft_min=radians(-180.0),
+                                   soft_max=radians(+180.0),
                                    update=param_update,
                                    )
 
@@ -115,10 +113,8 @@ class DistantWorldsOrbitParams(PropertyGroup):
                                        description="Orientation of the path in the orbital plane",
                                        subtype='ANGLE',
                                        default=radians(0.0),
-                                       min=radians(0.0),
-                                       max=radians(360.0),
-                                       soft_min=radians(0.0),
-                                       soft_max=radians(360.0),
+                                       soft_min=radians(-180.0),
+                                       soft_max=radians(+180.0),
                                        update=param_update,
                                        )
 
@@ -136,14 +132,18 @@ class DistantWorldsOrbitParams(PropertyGroup):
 
     # TODO
     # mean anomaly at epoch
-    mean_anomaly_epoch = 0.0
+    mean_anomaly_epoch = FloatProperty(name="Mean Anomaly at Epoch",
+                                       description="Mean anomaly at the reference time",
+                                       default=radians(0.0),
+                                       soft_min=radians(-180.0),
+                                       soft_max=radians(+180.0),
+                                       update=param_update,
+                                       )
 
     # TODO
     mean_motion = FloatProperty(name="Mean Motion",
                                 description="Mean motion in radians per unit time",
                                 default=radians(360.0),
-                                min=radians(0.0),
-                                soft_min=radians(0.0),
                                 update=param_update,
                                 )
 
