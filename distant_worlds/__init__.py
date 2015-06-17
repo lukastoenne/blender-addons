@@ -38,16 +38,16 @@ def register():
     idmap.register()
     settings.register()
     orbit.register()
-    body.register()
     objects.register()
+    body.register()
     scene.register()
     ui.register()
 
 def unregister():
     ui.unregister()
     scene.unregister()
-    objects.unregister()
     body.unregister()
+    objects.unregister()
     orbit.unregister()
     settings.unregister()
     idmap.unregister()

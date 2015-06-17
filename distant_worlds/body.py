@@ -1,3 +1,4 @@
+
 ### BEGIN GPL LICENSE BLOCK #####
 #
 #  This program is free software; you can redistribute it and/or
@@ -25,10 +26,22 @@ from bpy.props import *
 from distant_worlds.util import *
 from distant_worlds.idmap import *
 from distant_worlds.orbit import *
-from distant_worlds.objects import *
 
 # -----------------------------------------------------------------------------
 # Properties
+
+class DistantWorldsComponent(metaclass = DistantWorldsPropertyGroup):
+    def prop_update_verify(self, context):
+        body = getattr(context, 'distant_worlds_body', None)
+        if body:
+            self.verify(body)
+
+    enabled = BoolProperty(name="Enabled",
+                           description="Use this component",
+                           default=False,
+                           update=prop_update_verify,
+                           )
+
 
 class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
     @property
@@ -60,53 +73,24 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
     def matrix_equator_world(self):
         return self.matrix_refplane_world * self.orbit_params.matrix_equator_refplane
 
-    #### Objects ####
+    #### Components ####
 
-    def verify_body_object(self):
-        ob = self.body_object
-        if  ob:
-            body_object_verify(ob, self)
+    #component_surface = PointerProperty(name="Surface Component", type=DistantWorldsComponentSurface)
+    #component_path = PointerProperty(name="Path Component", type=DistantWorldsComponentPath)
 
-    def verify_path_object(self):
-        ob = self.path_object
-        if ob:
-            path_object_verify(ob, self)
+    @property
+    def components(self):
+        attrs = ['component_surface', 'component_path']
+        return { attr : getattr(self, attr) for attr in attrs }
 
     def verify_all(self):
-        self.verify_body_object()
-        self.verify_path_object()
+        for comp in self.components.values():
+            comp.verify(self)
 
-    def body_object_update(self, context):
-        self.verify_body_object()
-    body_object = IDRefProperty(name="Body Object",
-                                description="Main object representing the body",
-                                type='Object',
-                                update=body_object_update,
-                                poll=lambda _,x: body_object_poll(x),
-                                )
-    def path_object_update(self, context):
-        self.verify_path_object()
-    path_object = IDRefProperty(name="Path Object",
-                                description="Curve object for the body's path",
-                                type='Object',
-                                update=path_object_update,
-                                poll=lambda _,x: path_object_poll(x),
-                                )
-    path_resolution = IntProperty(name="Path Resolution",
-                                  description="Number of path curve control points",
-                                  default=16,
-                                  min=3,
-                                  soft_min=3,
-                                  soft_max=64,
-                                  update=path_object_update,
-                                  )
-
-    object_properties = {"body_object", "path_object"}
     @property
     def used_objects(self):
-        for prop in self.object_properties:
-            ob = getattr(self, prop, None)
-            if ob:
+        for comp in self.components.values():
+            for ob in comp.used_objects:
                 yield ob
 
     #### Parent Body ####
@@ -185,9 +169,9 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
     #### Serialization ####
     
     def write_preset_py(self, file_preset):
-        props = ["path_resolution"]
+        props = ["component_path.resolution"]
         for p in props:
-            file_preset.write("body.{prop} = {value}\n".format(prop=p, value=getattr(self, p)))
+            file_preset.write("body.{prop} = {value}\n".format(prop=p, value=exec("self."+p)))
         
         # map to the new body instance uid
         parent = self.parent_body
@@ -212,12 +196,11 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
 
         layout.prop(self, "parent_body_enum")
 
-        layout.label("Objects:")
-        template_IDRef(layout, self, "body_object")
-        template_IDRef(layout, self, "path_object")
-        col = layout.column(align=True)
-        col.enabled = bool(self.path_object)
-        col.prop(self, "path_resolution")
+        for comp in self.components.values():
+            box = layout.box()
+            box.prop(comp, "enabled", text=comp.bl_label)
+            if comp.enabled:
+                comp.draw(context, box)
 
         layout.separator()
 
@@ -253,6 +236,10 @@ class DistantWorldsBodiesUIList(UIList):
 def register():
     DistantWorldsBody.orbit_params = PointerProperty(name="Orbital Parameters",
                                                      type=DistantWorldsOrbitParams)
+    DistantWorldsBody.component_surface = PointerProperty(name="Surface Component",
+                                                          type=bpy.types.DistantWorldsComponentSurface)
+    DistantWorldsBody.component_path = PointerProperty(name="Path Component",
+                                                       type=bpy.types.DistantWorldsComponentPath)
 
     bpy.utils.register_class(DistantWorldsBody)
 

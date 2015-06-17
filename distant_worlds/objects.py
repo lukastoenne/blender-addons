@@ -23,7 +23,10 @@ import bpy
 from bpy.types import Operator, Panel, PropertyGroup
 from bpy.props import *
 from mathutils import *
+from distant_worlds.body import DistantWorldsComponent
 from distant_worlds.driver import *
+from distant_worlds.util import *
+from distant_worlds.idmap import *
 
 # -----------------------------------------------------------------------------
 # Properties
@@ -37,7 +40,7 @@ class DistantWorldsObject(PropertyGroup):
         pass
 
 # -----------------------------------------------------------------------------
-# Body Object
+# Surface Object
 
 @body_driver_function
 def get_body_location(body):
@@ -46,16 +49,44 @@ def get_body_location(body):
     orbit = body.orbit_params
     return body.matrix_orbit_world  * orbit.location(orbit.current_time)
 
-def body_object_poll(ob):
-    if ob.type == 'MESH':
-        return True
-    return False
+class DistantWorldsComponentSurface(DistantWorldsComponent, PropertyGroup):
+    bl_label = "Surface"
+    
+    radius = FloatProperty(name="Radius",
+                           description="Radius at the equator",
+                           default=1000.0,
+                           soft_min=0.001,
+                           soft_max=100000.0,
+                           update=DistantWorldsComponent.prop_update_verify,
+                           )
 
-def body_object_verify(ob, body):
-    if not body_object_poll(ob):
+    def object_poll(self, ob):
+        if ob.type == 'MESH':
+            return True
         return False
+    object = IDRefProperty(name="Object",
+                           description="Mesh object representing the surface",
+                           type='Object',
+                           poll=object_poll,
+                           update=DistantWorldsComponent.prop_update_verify,
+                           )
 
-    make_body_driver(ob, "location", get_body_location, body)
+    def draw(self, context, layout):
+        template_IDRef(layout, self, "object")
+
+    def verify(self, body):
+        ob = self.object
+        if not (ob and self.object_poll(ob)):
+            return False
+        
+        make_body_driver(ob, "location", get_body_location, body)
+        return True
+
+    @property
+    def used_objects(self):
+        ob = self.object
+        if ob:
+            yield ob
 
 # -----------------------------------------------------------------------------
 # Path Object
@@ -70,11 +101,6 @@ def get_path_location(body):
         return orbit.location(orbit.current_time)
     else:
         return Vector((0,0,0))
-
-def path_object_poll(ob):
-    if ob.type == 'CURVE':
-        return True
-    return False
 
 def path_ellipsis(body, eta):
     orbit = body.orbit_params
@@ -122,19 +148,17 @@ def path_create_spline(spline, body):
         p2.handle_left_type='FREE'
         p1.co, p2.co, p1.handle_right, p2.handle_left = path_bezier_segment(body, eta1, eta2)
 
-def path_object_verify(ob, body):
-    if not path_object_poll(ob):
-        return False
-
+def path_curve_generate(ob, body):
     # init curve data
     orbit = body.orbit_params
+    comp = body.component_path
     make_body_driver(ob, "location", get_path_location, body)
 
     curve = ob.data
     curve.dimensions = '2D'
     splines = curve.splines
     
-    res = body.path_resolution
+    res = comp.resolution
 
     if len(splines) != 1 or len(splines[0].bezier_points) > res:
         splines.clear()
@@ -148,6 +172,48 @@ def path_object_verify(ob, body):
     path_create_spline(splines[0], body)
 
     return True
+
+class DistantWorldsComponentPath(DistantWorldsComponent, PropertyGroup):
+    bl_label = "Path"
+
+    def object_poll(self, ob):
+        if ob.type == 'CURVE':
+            return True
+        return False
+    object = IDRefProperty(name="Path Object",
+                           description="Curve object for the body's path",
+                           type='Object',
+                           poll=object_poll,
+                           update=DistantWorldsComponent.prop_update_verify,
+                           )
+    resolution = IntProperty(name="Path Resolution",
+                             description="Number of path curve control points",
+                             default=16,
+                             min=3,
+                             soft_min=3,
+                             soft_max=64,
+                             update=DistantWorldsComponent.prop_update_verify,
+                             )
+
+    def draw(self, context, layout):
+        template_IDRef(layout, self, "object")
+        col = layout.column(align=True)
+        col.enabled = bool(self.object)
+        col.prop(self, "resolution")
+
+    def verify(self, body):
+        ob = self.object
+        if not (ob and self.object_poll(ob)):
+            return False
+
+        path_curve_generate(ob, body)
+        return True
+
+    @property
+    def used_objects(self):
+        ob = self.object
+        if ob:
+            yield ob
 
 # -----------------------------------------------------------------------------
 # GUI
@@ -173,10 +239,16 @@ def register():
                                                       description="Settings for the Distant Worlds addon",
                                                       type=DistantWorldsObject)
 
+    bpy.utils.register_class(DistantWorldsComponentSurface)
+    bpy.utils.register_class(DistantWorldsComponentPath)
+
     bpy.utils.register_class(DistantWorldsObjectPanel)
 
 def unregister():
     bpy.utils.unregister_class(DistantWorldsObjectPanel)
+
+    bpy.utils.unregister_class(DistantWorldsComponentPath)
+    bpy.utils.unregister_class(DistantWorldsComponentSurface)
 
     del bpy.types.Object.distant_worlds
     bpy.utils.unregister_class(DistantWorldsObject)
