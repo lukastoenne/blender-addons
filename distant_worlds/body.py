@@ -61,7 +61,9 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
         parent = self.parent_body
         if parent:
             parent_orbit = parent.orbit_params
-            return Matrix.Translation(parent_orbit.location(parent_orbit.current_time))
+            parent_loc_orbit = parent_orbit.location(parent_orbit.current_time)
+            parent_loc_world = parent.matrix_orbit_world * parent_loc_orbit
+            return Matrix.Translation(parent_loc_world)
         else:
             return Matrix.Identity(4)
 
