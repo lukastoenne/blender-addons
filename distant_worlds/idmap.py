@@ -28,6 +28,12 @@ for key, c in BlendData.bl_rna.properties.items():
     if c.type == 'COLLECTION' and isinstance(c.fixed_type, ID):
         _idtypes[c.fixed_type.bl_rna.identifier] = (c.fixed_type, key)
 
+if False:
+    print("=== Registered ID types: ===")
+    for idname, (rna_type, data_prop) in _idtypes.items():
+        print("{idname}: {rna_type!r}, {data_prop}".format(**locals()))
+    print("============================")
+
 _idtype_items = [
     (
         t.bl_rna.identifier,
@@ -96,9 +102,9 @@ def make_id_ref_property(attr, **kw):
             if update:
                 update(self, bpy.context)
         else:
-            if not isinstance(value, rna_type):
+            if not isinstance(value, type(rna_type)):
                 raise ValueError("Invalid ID type %s, expected %s" % (value.bl_rna.identifier, rna_type.bl_rna.identifier))
-            elif poll and not poll(value):
+            elif poll and not poll(self, value):
                 raise ValueError("Invalid ID datablock %r" % value)
 
             props['idname'] = value.name

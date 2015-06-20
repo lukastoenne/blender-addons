@@ -14,12 +14,14 @@
 #                a              e               I                L            long.peri.      long.node.
 #            AU, AU/Cy     rad, rad/Cy     deg, deg/Cy      deg, deg/Cy      deg, deg/Cy     deg, deg/Cy
 # -----------------------------------------------------------------------------------------------------------
-elements = {
+orbital_elements = {
+'Sun'     : [0.00000000,     0.00000000,     0.00000000,       0.00000000,     0.00000000,     0.00000000,
+             0.00000000,     0.00000000,     0.00000000,       0.00000000,     0.00000000,     0.00000000],
 'Mercury' : [0.38709927,     0.20563593,     7.00497902,     252.25032350,    77.45779628,    48.33076593,
              0.00000037,     0.00001906,    -0.00594749,  149472.67411175,     0.16047689,    -0.12534081],
 'Venus'   : [0.72333566,     0.00677672,     3.39467605,     181.97909950,   131.60246718,    76.67984255,
              0.00000390,    -0.00004107,    -0.00078890,   58517.81538729,     0.00268329,    -0.27769418],
-'EM Bary' : [1.00000261,     0.01671123,    -0.00001531,     100.46457166,   102.93768193,     0.0,
+'Earth'   : [1.00000261,     0.01671123,    -0.00001531,     100.46457166,   102.93768193,     0.0,
              0.00000562,    -0.00004392,    -0.01294668,   35999.37244981,     0.32327364,     0.0],
 'Mars'    : [1.52371034,     0.09339410,     1.84969142,      -4.55343205,   -23.94362959,    49.55953891,
              0.00001847,     0.00007882,    -0.00813131,   19140.30268499,     0.44441088,    -0.29257343],
@@ -33,6 +35,60 @@ elements = {
              0.00026291,     0.00005105,     0.00035372,     218.45945325,    -0.32241464,    -0.00508664],
 'Pluto'   :[39.48211675,     0.24882730,    17.14001206,     238.92903833,   224.06891629,   110.30393684,
             -0.00031596,     0.00005170,     0.00004818,     145.20780515,    -0.04062942,    -0.01183482],
+}
+
+def comp_surface(radius, oblateness=0.0):
+    kw = {'radius' : radius,
+          'oblateness' : oblateness,
+         }
+    return ('surface', kw)
+
+def comp_path(resolution=0):
+    kw = dict()
+    if resolution:
+        kw['resolution'] = resolution
+    return ('path', kw)
+
+components = {
+'Sun' : [
+    comp_surface(696342.0, 0.0),
+    ],
+'Mercury' : [
+    comp_surface(2439.7, 0.0),
+    comp_path(),
+    ],
+'Venus' : [
+    comp_surface(6051.8, 0.0),
+    comp_path(),
+    ],
+'Earth' : [
+    comp_surface(6371.0, 0.00335),
+    comp_path(),
+    ],
+'Mars' : [
+    comp_surface(3389.5, 0.00648),
+    comp_path(),
+    ],
+'Jupiter' : [
+    comp_surface(69911.0, 0.06487),
+    comp_path(),
+    ],
+'Saturn' : [
+    comp_surface(58232.0, 0.09796),
+    comp_path(),
+    ],
+'Uranus' : [
+    comp_surface(25362.0, 0.02293),
+    comp_path(),
+    ],
+'Neptune' : [
+    comp_surface(24622.0, 0.01708),
+    comp_path(),
+    ],
+'Pluto' : [
+    comp_surface(1184.0, 0.0),
+    comp_path(),
+    ],
 }
 
 # -----------------------------------------------------------------------------
@@ -53,13 +109,24 @@ def set_orbit(orbit, elements):
     orbit.periapsis_argument = radians(P)
     orbit.ascending_node = radians(N)
 
-def add_body(dw, name, elements):
-    body = dw.add_body(name)
+def set_components(body, components):
+    for c in components:
+        ctype = c[0]
+        params = c[1]
+        comp = getattr(body, "component_%s" % ctype)
+        for key, value in params.items():
+            setattr(comp, key, value)
+        comp.enabled = True
+        comp.verify(body, create=True)
 
-    set_orbit(body.orbit_params, elements)
+def add_body(dw, name, orbital_elements, components):
+    body = dw.add_body(name)
+    set_orbit(body.orbit_params, orbital_elements)
+    set_components(body, components)
 
 
 dw.clear_bodies()
 
-for name, elem in elements.items():
-    add_body(dw, name, elem)
+for name, elem in orbital_elements.items():
+    comps = components.get(name, [])
+    add_body(dw, name, elem, comps)

@@ -22,6 +22,7 @@ from math import *
 import bpy, bmesh
 from bpy.types import Operator, Panel, PropertyGroup
 from bpy.props import *
+from bpy_extras.object_utils import object_data_add
 from mathutils import *
 from distant_worlds.body import DistantWorldsComponent
 from distant_worlds.driver import *
@@ -98,12 +99,12 @@ class DistantWorldsComponentSurface(DistantWorldsComponent, PropertyGroup):
                            update=DistantWorldsComponent.prop_update_verify,
                            )
 
-    flattening = FloatProperty(name="Flattening Ratio",
-                               description="Ratio of equatorial to polar radius",
-                               default=1.0,
+    oblateness = FloatProperty(name="Oblateness",
+                               description="Ratio of equatorial bulge to radius",
+                               default=0.0,
                                min=0.0,
-                               soft_min=0.5,
-                               soft_max=1.5,
+                               soft_min=0.0,
+                               soft_max=0.5,
                                update=DistantWorldsComponent.prop_update_verify,
                                )
 
@@ -126,20 +127,35 @@ class DistantWorldsComponentSurface(DistantWorldsComponent, PropertyGroup):
 
     @property
     def surface_scale(self):
-        return Vector((1.0, 1.0, self.flattening)) * self.radius
+        return Vector((1.0, 1.0, 1 - self.oblateness)) * self.radius
 
     def draw(self, context, layout):
         template_IDRef(layout, self, "object")
         split = layout.split()
         col = split.column(align=True)
         col.prop(self, "radius")
-        col.prop(self, "flattening")
+        col.prop(self, "oblateness")
 
-    def verify(self, body):
+    def verify(self, body, create=False):
         ob = self.object
-        if not (ob and self.object_poll(ob)):
-            return False
-        
+        if ob and not self.object_poll(ob):
+            if create:
+                self.object = None
+                bpy.data.objects.remove(ob)
+                ob = None
+            else:
+                return False
+        if not ob:
+            if create:
+                mesh = bpy.data.meshes.new(name="{}.surface".format(body.name))
+                # useful for development when the mesh may be invalid.
+                # mesh.validate(verbose=True)
+                base = object_data_add(bpy.context, mesh)
+                ob = base.object
+                self.object = ob
+            else:
+                return False
+
         make_body_driver(ob, "location", get_body_location, body)
         make_body_driver(ob, "rotation_quaternion", get_body_surface_rotation_qt, body)
         make_body_driver(ob, "rotation_euler", get_body_surface_rotation_euler, body)
@@ -231,6 +247,7 @@ def path_curve_generate(ob, body, path):
 
     curve = ob.data
     curve.dimensions = '2D'
+    curve.fill_mode = 'NONE'
     splines = curve.splines
     
     res = path.resolution
@@ -276,10 +293,23 @@ class DistantWorldsComponentPath(DistantWorldsComponent, PropertyGroup):
         col.enabled = bool(self.object)
         col.prop(self, "resolution")
 
-    def verify(self, body):
+    def verify(self, body, create=False):
         ob = self.object
-        if not (ob and self.object_poll(ob)):
-            return False
+        if ob and not self.object_poll(ob):
+            if create:
+                self.object = None
+                bpy.data.objects.remove(ob)
+                ob = None
+            else:
+                return False
+        if not ob:
+            if create:
+                curve = bpy.data.curves.new(name="{}.path".format(body.name), type='CURVE')
+                base = object_data_add(bpy.context, curve)
+                ob = base.object
+                self.object = ob
+            else:
+                return False
 
         path_curve_generate(ob, body, self)
         return True
