@@ -148,6 +148,10 @@ class DistantWorldsOrbitParams(PropertyGroup):
                                 )
 
     @property
+    def scale(self):
+        return self.dw.scene_scale
+
+    @property
     def matrix_orbit_refplane(self):
         """Transformation from the orbital plane to the reference plane"""
         if self.use_orbital_plane:

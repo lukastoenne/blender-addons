@@ -19,7 +19,7 @@
 # <pep8 compliant>
 
 from math import *
-import bpy
+import bpy, bmesh
 from bpy.types import Operator, Panel, PropertyGroup
 from bpy.props import *
 from mathutils import *
@@ -47,11 +47,49 @@ def get_body_location(body):
     if not body:
         return Vector((0,0,0))
     orbit = body.orbit_params
-    return body.matrix_orbit_world  * orbit.location(orbit.current_time)
+    return body.matrix_orbit_world * orbit.location(orbit.current_time) * orbit.scale
+
+@body_driver_function
+def get_body_surface_rotation_qt(body):
+    if not body:
+        return Quaternion()
+    orbit = body.orbit_params
+    surface = body.component_surface
+    mat = body.matrix_orbit_world * surface.matrix_equator_orbit
+    return mat.to_quaternion()
+
+@body_driver_function
+def get_body_surface_rotation_euler(body):
+    if not body:
+        return Quaternion()
+    orbit = body.orbit_params
+    surface = body.component_surface
+    mat = body.matrix_orbit_world * surface.matrix_equator_orbit
+    return mat.to_euler('XYZ')
+
+@body_driver_function
+def get_body_surface_scale(body):
+    if not body:
+        return Vector((1,1,1))
+    surface = body.component_surface
+    return body.scale * surface.surface_scale
+
+def surface_generate_sphere(ob, body, surface):
+    mesh = ob.data
+
+    bm = bmesh.new()
+    #bm.from_mesh(mesh)
+
+    subdiv = 2
+    diameter = 2.0
+    bmesh.ops.create_icosphere(bm, subdivisions=subdiv, diameter=diameter, matrix=Matrix.Identity(4))
+
+    bm.to_mesh(mesh)
+    bm.free()
 
 class DistantWorldsComponentSurface(DistantWorldsComponent, PropertyGroup):
     bl_label = "Surface"
-    
+
     radius = FloatProperty(name="Radius",
                            description="Radius at the equator",
                            default=1000.0,
@@ -59,6 +97,15 @@ class DistantWorldsComponentSurface(DistantWorldsComponent, PropertyGroup):
                            soft_max=100000.0,
                            update=DistantWorldsComponent.prop_update_verify,
                            )
+
+    flattening = FloatProperty(name="Flattening Ratio",
+                               description="Ratio of equatorial to polar radius",
+                               default=1.0,
+                               min=0.0,
+                               soft_min=0.5,
+                               soft_max=1.5,
+                               update=DistantWorldsComponent.prop_update_verify,
+                               )
 
     def object_poll(self, ob):
         if ob.type == 'MESH':
@@ -71,8 +118,22 @@ class DistantWorldsComponentSurface(DistantWorldsComponent, PropertyGroup):
                            update=DistantWorldsComponent.prop_update_verify,
                            )
 
+    @property
+    def matrix_equator_orbit(self):
+        # TODO
+        mat = Matrix.Identity(4)
+        return mat
+
+    @property
+    def surface_scale(self):
+        return Vector((1.0, 1.0, self.flattening)) * self.radius
+
     def draw(self, context, layout):
         template_IDRef(layout, self, "object")
+        split = layout.split()
+        col = split.column(align=True)
+        col.prop(self, "radius")
+        col.prop(self, "flattening")
 
     def verify(self, body):
         ob = self.object
@@ -80,6 +141,12 @@ class DistantWorldsComponentSurface(DistantWorldsComponent, PropertyGroup):
             return False
         
         make_body_driver(ob, "location", get_body_location, body)
+        make_body_driver(ob, "rotation_quaternion", get_body_surface_rotation_qt, body)
+        make_body_driver(ob, "rotation_euler", get_body_surface_rotation_euler, body)
+        make_body_driver(ob, "scale", get_body_surface_scale, body)
+
+        surface_generate_sphere(ob, body, self)
+
         return True
 
     @property
@@ -98,9 +165,17 @@ def get_path_location(body):
     parent = body.parent_body
     if parent:
         orbit = parent.orbit_params
-        return orbit.location(orbit.current_time)
+        return orbit.location(orbit.current_time) * orbit.scale
     else:
         return Vector((0,0,0))
+
+@body_driver_function
+def get_path_scale(body):
+    if not body:
+        return Vector((1,1,1))
+    orbit = body.orbit_params
+    scale = orbit.scale
+    return Vector((scale, scale, scale))
 
 def path_ellipsis(body, eta):
     orbit = body.orbit_params
@@ -148,17 +223,17 @@ def path_create_spline(spline, body):
         p2.handle_left_type='FREE'
         p1.co, p2.co, p1.handle_right, p2.handle_left = path_bezier_segment(body, eta1, eta2)
 
-def path_curve_generate(ob, body):
+def path_curve_generate(ob, body, path):
     # init curve data
     orbit = body.orbit_params
-    comp = body.component_path
     make_body_driver(ob, "location", get_path_location, body)
+    make_body_driver(ob, "scale", get_path_scale, body)
 
     curve = ob.data
     curve.dimensions = '2D'
     splines = curve.splines
     
-    res = comp.resolution
+    res = path.resolution
 
     if len(splines) != 1 or len(splines[0].bezier_points) > res:
         splines.clear()
@@ -206,7 +281,7 @@ class DistantWorldsComponentPath(DistantWorldsComponent, PropertyGroup):
         if not (ob and self.object_poll(ob)):
             return False
 
-        path_curve_generate(ob, body)
+        path_curve_generate(ob, body, self)
         return True
 
     @property

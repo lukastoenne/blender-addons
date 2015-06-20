@@ -59,5 +59,7 @@ def add_body(dw, name, elements):
     set_orbit(body.orbit_params, elements)
 
 
+dw.clear_bodies()
+
 for name, elem in elements.items():
     add_body(dw, name, elem)

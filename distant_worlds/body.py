@@ -30,11 +30,17 @@ from distant_worlds.orbit import *
 # -----------------------------------------------------------------------------
 # Properties
 
-class DistantWorldsComponent(metaclass = DistantWorldsPropertyGroup):
+class DistantWorldsComponent(metaclass = DistantWorldsPropertyGroup):    
+    @property
+    def dw(self):
+        scene = self.id_data
+        return scene.distant_worlds
+
     def prop_update_verify(self, context):
-        body = getattr(context, 'distant_worlds_body', None)
-        if body:
-            self.verify(body)
+        if self.enabled:
+            body = getattr(context, 'distant_worlds_body', None)
+            if body:
+                self.verify(body)
 
     enabled = BoolProperty(name="Enabled",
                            description="Use this component",
@@ -94,6 +100,11 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
         for comp in self.components.values():
             for ob in comp.used_objects:
                 yield ob
+
+    @property
+    def scale(self):
+        """Scale of body components"""
+        return self.dw.scene_scale * self.dw.body_scale * 0.001 / AU # km to AU
 
     #### Parent Body ####
 
@@ -186,6 +197,10 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
     #### UI ####
 
     def param_update(self, context):
+        # XXX this is nasty:
+        # - drivers get replaced all the time
+        # - meshes are regenerated
+        # needs more tiered levels to avoid unnecessary updates
         self.verify_all()
 
     def draw(self, context, layout):

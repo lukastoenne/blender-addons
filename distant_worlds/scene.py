@@ -88,6 +88,36 @@ class DistantWorldsTimeSettings(PropertyGroup):
 _scene_active_object_sync = None
 
 class DistantWorldsScene(PropertyGroup):
+
+    def param_update(self, context):
+        for body in self.bodies:
+            body.param_update(context)
+
+    #### Observational Parameters ####
+    scene_scale = FloatProperty(name="Scene Scale",
+                                description="Scale of 1 BU (Blender scene unit) to 1 AU (distance Sun<->Earth)",
+                                default=1.0,
+                                min=1e-15,
+                                max=1e15,
+                                soft_min=0.001,
+                                soft_max=1000.0,
+                                update=param_update,
+                                )
+
+    body_scale = FloatProperty(name="Body Scale",
+                               description="Scale of bodies relative to orbits",
+                               default=1e9,
+                               min=1e-15,
+                               max=1e15,
+                               soft_min=1,
+                               soft_max=1e11,
+                               update=param_update,
+                               )
+
+    def draw_params(self, context, layout):
+        layout.prop(self, "scene_scale")
+        layout.prop(self, "body_scale")
+
     #### Bodies Collection ####
 
     #bodies = CollectionProperty(type=DistantWorldsBody) # created in register()
@@ -323,6 +353,20 @@ class DistantWorldsAddPreset(AddPresetBase, Operator):
 # -----------------------------------------------------------------------------
 # GUI
 
+class DistantWorldsPanelSceneParams(Panel):
+    """Distant Worlds Parameters"""
+    bl_label = "Distant Worlds Parameters"
+    bl_idname = "distant_worlds.panel_params"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "scene"
+
+    def draw(self, context):
+        layout = self.layout
+        dw = context.scene.distant_worlds
+        if dw:
+            dw.draw_params(context, layout)
+
 class DistantWorldsPanelSceneBodies(Panel):
     """Distant Worlds Bodies"""
     bl_label = "Distant Worlds Bodies"
@@ -377,6 +421,7 @@ def register():
     bpy.utils.register_class(DistantWorldsOperator_RemoveBody)
     bpy.utils.register_class(DistantWorldsPresetsMenu)
     bpy.utils.register_class(DistantWorldsAddPreset)
+    bpy.utils.register_class(DistantWorldsPanelSceneParams)
     bpy.utils.register_class(DistantWorldsPanelSceneBodies)
     bpy.utils.register_class(DistantWorldsPanelSceneTime)
 
@@ -385,6 +430,7 @@ def unregister():
     bpy.utils.unregister_class(DistantWorldsOperator_RemoveBody)
     bpy.utils.unregister_class(DistantWorldsAddPreset)
     bpy.utils.unregister_class(DistantWorldsPresetsMenu)
+    bpy.utils.unregister_class(DistantWorldsPanelSceneParams)
     bpy.utils.unregister_class(DistantWorldsPanelSceneBodies)
     bpy.utils.unregister_class(DistantWorldsPanelSceneTime)
 

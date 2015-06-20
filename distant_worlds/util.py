@@ -20,6 +20,15 @@
 
 import bpy, re, inspect
 
+# Astronomical Unit (AU)
+AU = 149597870700.0 # in meters
+# Parallax Arcsecond (parsec)
+parsec = 3.0856776e16 # in meters
+# Light Year
+light_year = 9460730472580800 # in meters
+
+
+
 def increment_name(name):
     m = re.match(r"(.*[.^\d])([0]*)(\d+)", name)
     if m:
