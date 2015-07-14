@@ -104,7 +104,7 @@ class DistantWorldsBody(PropertyGroup, metaclass = DistantWorldsPropertyGroup):
     @property
     def scale(self):
         """Scale of body components"""
-        return self.dw.scene_scale * self.dw.body_scale * 0.001 / AU # km to AU
+        return self.dw.scene_scale * self.dw.body_size(self) * 0.001 / AU # km to AU
 
     #### Parent Body ####
 

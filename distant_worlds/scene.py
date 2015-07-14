@@ -19,10 +19,13 @@
 # <pep8 compliant>
 
 from math import *
+import statistics
+
 import bpy
 from bpy.types import Menu, Operator, Panel, PropertyGroup, UIList
 from bpy.props import *
 from bl_operators.presets import AddPresetBase
+
 from distant_worlds.util import *
 from distant_worlds.idmap import *
 from distant_worlds.body import *
@@ -114,9 +117,44 @@ class DistantWorldsScene(PropertyGroup):
                                update=param_update,
                                )
 
+    body_scale_normalize = FloatProperty(name="Body Scale Normalize",
+                               description="Normalize body sizes",
+                               default=0.0,
+                               min=0.0,
+                               max=1.0,
+                               soft_min=0.0,
+                               soft_max=1.0,
+                               update=param_update,
+                               )
+
+    def get_median_body_radius(self):
+        def radii():
+            for body in self.bodies:
+                surface = body.component_surface
+                if surface.enabled:
+                    yield surface.radius
+
+        return statistics.median(radii())
+
+    def body_size(self, body):
+        size = self.body_scale
+
+        surface = body.component_surface
+        norm = self.body_scale_normalize
+        if surface.enabled and norm > 0.0:
+            radius = surface.radius
+            median = self.get_median_body_radius()
+
+            normradius = norm * median + (1.0-norm) * radius
+            return normradius / radius * size
+        else:
+            return size
+
     def draw_params(self, context, layout):
         layout.prop(self, "scene_scale")
-        layout.prop(self, "body_scale")
+        col = layout.column(align=True)
+        col.prop(self, "body_scale")
+        col.prop(self, "body_scale_normalize", text="Normalize")
 
     #### Bodies Collection ####
 
