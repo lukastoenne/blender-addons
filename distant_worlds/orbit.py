@@ -227,6 +227,19 @@ class DistantWorldsEllipticalOrbit(PropertyGroup):
             handle2_left = co2 - alpha * dco2
 
             yield co1, co2, handle1_right, handle2_left
+    
+    def write_preset_py(self, file_preset):
+        props = ["semimajor",
+                 "eccentricity",
+                 "inclination",
+                 "ascending_node",
+                 "periapsis_argument",
+                 "use_orbital_plane",
+                 "mean_anomaly_epoch",
+                 "mean_motion",
+                 ]
+        for p in props:
+            file_preset.write("elliptic.{prop} = {value}\n".format(prop=p, value=getattr(self, p)))
 
     def draw(self, context, layout):
         layout.prop(self, "semimajor")
@@ -247,6 +260,43 @@ class DistantWorldsEllipticalOrbit(PropertyGroup):
         col.prop(self, "mean_motion")
 
 
+# Loads orbital ephemerides from a data file
+class DistantWorldsDataOrbit(PropertyGroup):
+    @property
+    def dw(self):
+        return self.id_data.distant_worlds
+
+    def param_update(self, context):
+        body = getattr(context, "distant_worlds_body", None)
+        if body:
+            body.param_update(context)
+
+    filepath = StringProperty(name="File Path",
+                              description="Data file containing ephemerides for the body",
+                              subtype='FILE_PATH',
+                              update=param_update
+                              )
+
+    @property
+    def matrix_orbit_refplane(self):
+        return Matrix.Identity(4)
+
+    def location(self, time):
+        return Vector((0,0,0)) # TODO
+
+    def path_segments(self, res):
+        return [] # TODO
+
+    def write_preset_py(self, file_preset):
+        props = ["filepath",
+                 ]
+        for p in props:
+            file_preset.write("datafile.{prop} = {value}\n".format(prop=p, value=getattr(self, p)))
+
+    def draw(self, context, layout):
+        layout.prop(self, "filepath")
+
+
 # Orbital parameters and settings
 class DistantWorldsOrbitParams(PropertyGroup):
     @property
@@ -261,6 +311,9 @@ class DistantWorldsOrbitParams(PropertyGroup):
 #    elliptic = PointerProperty(name="Elliptic",
 #                               description="Elliptic orbit parameters",
 #                               type=DistantWorldsEllipticalOrbit)
+#    datafile = PointerProperty(name="Data File Settings",
+#                               description="Settings for ephemerides from file data",
+#                               type=DistantWorldsDataOrbit)
 
     # Options
     use_scene_time = BoolProperty(name="Use Scene Time",
@@ -288,13 +341,13 @@ class DistantWorldsOrbitParams(PropertyGroup):
         if self.type == 'ELLIPTIC':
             return self.elliptic.location(time)
         elif self.type == 'DATA':
-            return Vector((0,0,0)) # TODO
+            return self.datafile.location(time)
 
     def path_segments(self, res):
         if self.type == 'ELLIPTIC':
             return self.elliptic.path_segments(res)
         elif self.type == 'DATA':
-            return [] # TODO
+            return self.datafile.path_segments(res)
 
     def path_is_periodic(self):
         return self.type in {'ELLIPTIC'}
@@ -304,7 +357,7 @@ class DistantWorldsOrbitParams(PropertyGroup):
         if self.type == 'ELLIPTIC':
             return self.elliptic.matrix_orbit_refplane
         elif self.type == 'DATA':
-            return Matrix.Identity(4)
+            return self.datafile.matrix_orbit_refplane
 
     # TODO
     @property
@@ -327,33 +380,37 @@ class DistantWorldsOrbitParams(PropertyGroup):
     #### Serialization ####
     
     def write_preset_py(self, file_preset):
-        props = ["semimajor",
-                 "eccentricity",
-                 "inclination",
-                 "ascending_node",
-                 "periapsis_argument",
-                 "use_scene_time",
-                 "use_orbital_plane",
-                 "mean_anomaly_epoch",
-                 "mean_motion",
+        props = ["use_scene_time",
                  ]
         for p in props:
             file_preset.write("orbit.{prop} = {value}\n".format(prop=p, value=getattr(self, p)))
+
+        file_preset.write("elliptic = orbit.elliptic\n")
+        self.elliptic.write_preset_py(file_preset)
+
+        file_preset.write("datafile = orbit.datafile\n")
+        self.datafile.write_preset_py(file_preset)
 
     def draw(self, context, layout):
         layout.prop(self, "type", text="Orbit Type")
         if self.type == 'ELLIPTIC':
             self.elliptic.draw(context, layout)
         elif self.type == 'DATA':
-            pass
+            self.datafile.draw(context, layout)
+
 
 def register():
     bpy.utils.register_class(DistantWorldsEllipticalOrbit)
+    bpy.utils.register_class(DistantWorldsDataOrbit)
+    
     DistantWorldsOrbitParams.elliptic = \
         PointerProperty(name="Elliptic",
                         description="Elliptic orbit parameters",
                         type=DistantWorldsEllipticalOrbit)
-
+    DistantWorldsOrbitParams.datafile = \
+        PointerProperty(name="Data File Settings",
+                        description="Settings for ephemerides from file data",
+                        type=DistantWorldsDataOrbit)
     bpy.utils.register_class(DistantWorldsOrbitParams)
 
 def unregister():
