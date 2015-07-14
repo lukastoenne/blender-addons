@@ -100,14 +100,17 @@ scene = bpy.context.scene
 dw = scene.distant_worlds
 
 def set_orbit(orbit, elements):
+    orbit.type == 'ELLIPTIC'
+    ellipse = orbit.elliptic
+
     a, e, I, L, P, N, da, de, dI, dL, dP, dN = elements
-    orbit.semimajor = a
-    orbit.eccentricity = e
-    orbit.inclination = radians(I)
-    orbit.mean_anomaly_epoch = radians(L)
-    orbit.mean_motion = radians(dL)
-    orbit.periapsis_argument = radians(P)
-    orbit.ascending_node = radians(N)
+    ellipse.semimajor = a
+    ellipse.eccentricity = e
+    ellipse.inclination = radians(I)
+    ellipse.mean_anomaly_epoch = radians(L)
+    ellipse.mean_motion = radians(dL)
+    ellipse.periapsis_argument = radians(P)
+    ellipse.ascending_node = radians(N)
 
 def set_components(body, components):
     for c in components:

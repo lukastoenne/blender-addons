@@ -193,31 +193,6 @@ def get_path_scale(body):
     scale = orbit.scale
     return Vector((scale, scale, scale))
 
-def path_ellipsis(body, eta):
-    orbit = body.orbit_params
-    x = orbit.semiminor * sin(eta)
-    y = orbit.semimajor * cos(eta) - orbit.focus
-    return Vector((x, -y, 0.0))
-
-def path_tangent(body, eta):
-    orbit = body.orbit_params
-    dx = orbit.semiminor * cos(eta)
-    dy = -orbit.semimajor * sin(eta)
-    return Vector((dx, -dy, 0.0))
-
-# calculates bezier curve approximation of an ellipse, based on
-# http://www.spaceroots.org/documents/ellipse/node22.html
-def path_bezier_segment(body, eta1, eta2):
-    co1 = path_ellipsis(body, eta1)
-    co2 = path_ellipsis(body, eta2)
-    dco1 = path_tangent(body, eta1)
-    dco2 = path_tangent(body, eta2)
-
-    t = tan((eta2 - eta1) * 0.5)
-    alpha = sin(eta2 - eta1) * (sqrt(4.0 + 3.0*t*t) - 1.0) / 3.0
-
-    return co1, co2, co1 + alpha * dco1, co2 - alpha * dco2
-
 def path_create_spline(spline, body):
     spline.type = 'BEZIER'
     spline.use_cyclic_u = True
@@ -227,17 +202,17 @@ def path_create_spline(spline, body):
     if res < 2:
         return
 
-    delta = 2.0*pi / res
-    for i in range(res):
-        j = (i+1) % res
-        p1 = points[i]
-        p2 = points[j]
-        eta1 = delta * i
-        eta2 = delta * j
+    orbit = body.orbit_params
+    for index, (co1, co2, hr1, hl2) in enumerate(orbit.path_segments(res)):
+        p1 = points[index]
+        p2 = points[(index+1) % res]
 
         p1.handle_right_type='FREE'
         p2.handle_left_type='FREE'
-        p1.co, p2.co, p1.handle_right, p2.handle_left = path_bezier_segment(body, eta1, eta2)
+        p1.co = co1
+        p2.co = co2
+        p1.handle_right = hr1
+        p2.handle_left = hl2
 
 def path_curve_generate(ob, body, path):
     # init curve data

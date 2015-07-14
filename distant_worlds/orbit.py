@@ -59,8 +59,7 @@ def debug_object_scale(name, scale):
                       * mrot.to_matrix().to_4x4() \
                       * Matrix.Scale(scale, 4)
 
-# Orbital parameters and settings
-class DistantWorldsOrbitParams(PropertyGroup):
+class DistantWorldsEllipticalOrbit(PropertyGroup):
     @property
     def dw(self):
         return self.id_data.distant_worlds
@@ -118,19 +117,12 @@ class DistantWorldsOrbitParams(PropertyGroup):
                                        update=param_update,
                                        )
 
-    # Options
-    use_scene_time = BoolProperty(name="Use Scene Time",
-                                  description="Move the body during animation",
-                                  default=True,
-                                  update=param_update
-                                  )
     use_orbital_plane = BoolProperty(name="Use Orbital Plane",
                                      description="Use path rotation out of the reference plane",
                                      default=True,
                                      update=param_update
                                      )
 
-    # TODO
     # mean anomaly at epoch
     mean_anomaly_epoch = FloatProperty(name="Mean Anomaly at Epoch",
                                        description="Mean anomaly at the reference time",
@@ -140,16 +132,11 @@ class DistantWorldsOrbitParams(PropertyGroup):
                                        update=param_update,
                                        )
 
-    # TODO
     mean_motion = FloatProperty(name="Mean Motion",
                                 description="Mean motion in radians per unit time",
                                 default=radians(360.0),
                                 update=param_update,
                                 )
-
-    @property
-    def scale(self):
-        return self.dw.scene_scale
 
     @property
     def matrix_orbit_refplane(self):
@@ -161,15 +148,6 @@ class DistantWorldsOrbitParams(PropertyGroup):
             return (mat_a * mat_i * mat_w).to_4x4()
         else:
             return Matrix.Identity(4)
-
-    @property
-    def matrix_equator_orbit(self):
-        """Transformation from the body's equator plane to the orbital plane"""
-        return Matrix.Identity(4)
-
-    @property
-    def matrix_equator_refplane(self):
-        return self.matrix_orbit_refplane * self.matrix_equator_orbit
 
     @property
     def focus(self):
@@ -219,6 +197,122 @@ class DistantWorldsOrbitParams(PropertyGroup):
         p = Vector(( sin(v), -cos(v), 0 )) * r
         return p
 
+    def path_segments(self, res):
+        a = self.semimajor
+        b = self.semiminor
+        f = self.focus
+
+        def path_point(eta):
+            x = b * sin(eta)
+            y = a * cos(eta) - f
+            dx = b * cos(eta)
+            dy = -a * sin(eta)
+            return Vector((x, -y, 0.0)), Vector((dx, -dy, 0.0))
+
+        # calculates bezier curve approximation of an ellipse, based on
+        # http://www.spaceroots.org/documents/ellipse/node22.html
+        delta = 2.0*pi / res
+        for i in range(res):
+            j = (i+1) % res
+            eta1 = delta * i
+            eta2 = delta * j
+
+            co1, dco1 = path_point(eta1)
+            co2, dco2 = path_point(eta2)
+
+            t = tan((eta2 - eta1) * 0.5)
+            alpha = sin(eta2 - eta1) * (sqrt(4.0 + 3.0*t*t) - 1.0) / 3.0
+
+            handle1_right = co1 + alpha * dco1
+            handle2_left = co2 - alpha * dco2
+
+            yield co1, co2, handle1_right, handle2_left
+
+    def draw(self, context, layout):
+        layout.prop(self, "semimajor")
+        layout.prop(self, "eccentricity", slider=True)
+
+        layout.separator()
+
+        layout.prop(self, "use_orbital_plane")
+        col = layout.column(align=True)
+        col.enabled = self.use_orbital_plane
+        col.prop(self, "inclination", slider=True)
+        col.prop(self, "ascending_node", slider=True)
+        col.prop(self, "periapsis_argument", slider=True)
+
+        layout.separator()
+
+        col = layout.column(align=True)
+        col.prop(self, "mean_motion")
+
+
+# Orbital parameters and settings
+class DistantWorldsOrbitParams(PropertyGroup):
+    @property
+    def dw(self):
+        return self.id_data.distant_worlds
+
+    def param_update(self, context):
+        body = getattr(context, "distant_worlds_body", None)
+        if body:
+            body.param_update(context)
+
+#    elliptic = PointerProperty(name="Elliptic",
+#                               description="Elliptic orbit parameters",
+#                               type=DistantWorldsEllipticalOrbit)
+
+    # Options
+    use_scene_time = BoolProperty(name="Use Scene Time",
+                                  description="Move the body during animation",
+                                  default=True,
+                                  update=param_update
+                                  )
+
+    orbit_type_items = [
+        ("ELLIPTIC", "Elliptic", "Regular elliptical orbit", 'NONE', 0),
+        #("HYPERBOLIC", "Hyperbolic", "Aperiodic path", 'NONE', 1),
+        ("DATA", "Data", "Use external data for path", 'NONE', 2),
+    ]
+
+    type = EnumProperty(name="Type",
+                        items=orbit_type_items,
+                        update=param_update,
+                        )
+
+    @property
+    def scale(self):
+        return self.dw.scene_scale
+
+    def location(self, time):
+        if self.type == 'ELLIPTIC':
+            return self.elliptic.location(time)
+        elif self.type == 'DATA':
+            return Vector((0,0,0)) # TODO
+
+    def path_segments(self, res):
+        if self.type == 'ELLIPTIC':
+            return self.elliptic.path_segments(res)
+        elif self.type == 'DATA':
+            return [] # TODO
+
+    @property
+    def matrix_orbit_refplane(self):
+        if self.type == 'ELLIPTIC':
+            return self.elliptic.matrix_orbit_refplane
+        elif self.type == 'DATA':
+            return Matrix.Identity(4)
+
+    # TODO
+    @property
+    def matrix_equator_orbit(self):
+        """Transformation from the body's equator plane to the orbital plane"""
+        return Matrix.Identity(4)
+
+    @property
+    def matrix_equator_refplane(self):
+        return self.matrix_orbit_refplane * self.matrix_equator_orbit
+
     @property
     def current_time(self):
         if self.use_scene_time:
@@ -244,28 +338,24 @@ class DistantWorldsOrbitParams(PropertyGroup):
             file_preset.write("orbit.{prop} = {value}\n".format(prop=p, value=getattr(self, p)))
 
     def draw(self, context, layout):
-        layout.prop(self, "semimajor")
-        layout.prop(self, "eccentricity", slider=True)
-
-        layout.separator()
-
-        layout.prop(self, "use_orbital_plane")
-        col = layout.column(align=True)
-        col.enabled = self.use_orbital_plane
-        col.prop(self, "inclination", slider=True)
-        col.prop(self, "ascending_node", slider=True)
-        col.prop(self, "periapsis_argument", slider=True)
-
-        layout.separator()
-
-        col = layout.column(align=True)
-        col.prop(self, "mean_motion")
+        layout.prop(self, "type", text="Orbit Type")
+        if self.type == 'ELLIPTIC':
+            self.elliptic.draw(context, layout)
+        elif self.type == 'DATA':
+            pass
 
 def register():
+    bpy.utils.register_class(DistantWorldsEllipticalOrbit)
+    DistantWorldsOrbitParams.elliptic = \
+        PointerProperty(name="Elliptic",
+                        description="Elliptic orbit parameters",
+                        type=DistantWorldsEllipticalOrbit)
+
     bpy.utils.register_class(DistantWorldsOrbitParams)
 
 def unregister():
     bpy.utils.unregister_class(DistantWorldsOrbitParams)
+    bpy.utils.unregister_class(DistantWorldsEllipticalOrbit)
 
 if __name__ == "__main__":
     register()
