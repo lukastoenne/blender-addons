@@ -296,6 +296,9 @@ class DistantWorldsOrbitParams(PropertyGroup):
         elif self.type == 'DATA':
             return [] # TODO
 
+    def path_is_periodic(self):
+        return self.type in {'ELLIPTIC'}
+
     @property
     def matrix_orbit_refplane(self):
         if self.type == 'ELLIPTIC':

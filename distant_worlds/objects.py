@@ -194,15 +194,16 @@ def get_path_scale(body):
     return Vector((scale, scale, scale))
 
 def path_create_spline(spline, body):
+    orbit = body.orbit_params
+
     spline.type = 'BEZIER'
-    spline.use_cyclic_u = True
+    spline.use_cyclic_u = orbit.path_is_periodic()
 
     points = spline.bezier_points
     res = len(points)
     if res < 2:
         return
 
-    orbit = body.orbit_params
     for index, (co1, co2, hr1, hl2) in enumerate(orbit.path_segments(res)):
         p1 = points[index]
         p2 = points[(index+1) % res]
