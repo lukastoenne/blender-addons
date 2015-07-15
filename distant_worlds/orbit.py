@@ -260,21 +260,93 @@ class DistantWorldsEllipticalOrbit(PropertyGroup):
         col.prop(self, "mean_motion")
 
 
+_loaded_datafiles = {}
+
+class DistantWorldsData:
+    def __init__(self, header, data):
+        self.header = header
+        self.data = data
+
+def get_datafile(name):
+    global _loaded_datafiles
+
+    path = bpy.path.abspath(name)
+    return _loaded_datafiles.get(path, None)
+
+def load_datafile(name):
+    global _loaded_datafiles
+
+    path = bpy.path.abspath(name)
+    if path in _loaded_datafiles:
+        raise Exception("Data file '%s' already loaded")
+
+    header = ""
+    data = []
+    with open(path, mode='r') as df:
+        part = 0
+        for line in df:
+            if part == 0:
+                if line.startswith("$$SOE"):
+                    part = 1
+                    continue
+                header += line
+            elif part == 1:
+                if line.startswith("$$EOE"):
+                    part = 2
+                    continue
+                data.append(line)
+            else:
+                break
+
+    df = DistantWorldsData(header, data)
+    _loaded_datafiles[path] = df
+    return df
+
+def unload_datafile(name):
+    global _loaded_datafiles
+
+    path = bpy.path.abspath(name)
+    if path in _loaded_datafiles:
+        del _loaded_datafiles[name]
+
 # Loads orbital ephemerides from a data file
 class DistantWorldsDataOrbit(PropertyGroup):
     @property
     def dw(self):
         return self.id_data.distant_worlds
 
+    def clear_data(self):
+        unload_datafile(self.filepath)
+
+    def reload_data(self):
+        df = get_datafile(self.datafile)
+        if df:
+            unload_datafile(self.filepath)
+            return load_datafile(self.filepath)
+        else:
+            return None
+
+    def get_data(self):
+        df = get_datafile(self.datafile)
+        if not df:
+            df = load_datafile(self.filepath)
+        return df
+
+    # ---------------------------------
+
     def param_update(self, context):
         body = getattr(context, "distant_worlds_body", None)
         if body:
             body.param_update(context)
 
+    def filepath_update(self, context):
+        self.reload_data()
+        param_update(context)
+
     filepath = StringProperty(name="File Path",
                               description="Data file containing ephemerides for the body",
                               subtype='FILE_PATH',
-                              update=param_update
+                              update=filepath_update
                               )
 
     @property
