@@ -64,10 +64,23 @@ class DistantWorldsEllipticalOrbit(PropertyGroup):
     def dw(self):
         return self.id_data.distant_worlds
 
-    def param_update(self, context):
+    def get_body(self, context):
+        # try direct lookup from context first
+        # XXX this does not always work because custom context pointers
+        # get lost in cases like menus, popups and file editor switches
         body = getattr(context, "distant_worlds_body", None)
-        if body:
-            body.param_update(context)
+
+        # fall back to linear search through bodies
+        if not body:
+            for body in self.dw.bodies:
+                if body.orbit_params.elliptic == self:
+                    break
+        
+        assert(body)
+        return body
+
+    def param_update(self, context):
+        self.get_body(context).param_update(context)
 
     semimajor = FloatProperty(name="Semimajor Axis",
                               description="Length of the semimajor axis",
@@ -276,27 +289,33 @@ def get_datafile(name):
 def load_datafile(name):
     global _loaded_datafiles
 
+    if not name:
+        return None
     path = bpy.path.abspath(name)
     if path in _loaded_datafiles:
         raise Exception("Data file '%s' already loaded")
 
     header = ""
     data = []
-    with open(path, mode='r') as df:
-        part = 0
-        for line in df:
-            if part == 0:
-                if line.startswith("$$SOE"):
-                    part = 1
-                    continue
-                header += line
-            elif part == 1:
-                if line.startswith("$$EOE"):
-                    part = 2
-                    continue
-                data.append(line)
-            else:
-                break
+    try:
+        with open(path, mode='r') as df:
+            part = 0
+            for line in df:
+                if part == 0:
+                    if line.startswith("$$SOE"):
+                        part = 1
+                        continue
+                    header += line
+                elif part == 1:
+                    if line.startswith("$$EOE"):
+                        part = 2
+                        continue
+                    data.append(line)
+                else:
+                    break
+    except FileNotFoundError:
+        print("Could not open file %s" % path)
+        return None
 
     df = DistantWorldsData(header, data)
     _loaded_datafiles[path] = df
@@ -307,7 +326,7 @@ def unload_datafile(name):
 
     path = bpy.path.abspath(name)
     if path in _loaded_datafiles:
-        del _loaded_datafiles[name]
+        del _loaded_datafiles[path]
 
 # Loads orbital ephemerides from a data file
 class DistantWorldsDataOrbit(PropertyGroup):
@@ -315,11 +334,26 @@ class DistantWorldsDataOrbit(PropertyGroup):
     def dw(self):
         return self.id_data.distant_worlds
 
+    def get_body(self, context):
+        # try direct lookup from context first
+        # XXX this does not always work because custom context pointers
+        # get lost in cases like menus, popups and file editor switches
+        body = getattr(context, "distant_worlds_body", None)
+
+        # fall back to linear search through bodies
+        if not body:
+            for body in self.dw.bodies:
+                if body.orbit_params.datafile == self:
+                    break
+        
+        assert(body)
+        return body
+
     def clear_data(self):
         unload_datafile(self.filepath)
 
     def reload_data(self):
-        df = get_datafile(self.datafile)
+        df = get_datafile(self.filepath)
         if df:
             unload_datafile(self.filepath)
             return load_datafile(self.filepath)
@@ -327,7 +361,7 @@ class DistantWorldsDataOrbit(PropertyGroup):
             return None
 
     def get_data(self):
-        df = get_datafile(self.datafile)
+        df = get_datafile(self.filepath)
         if not df:
             df = load_datafile(self.filepath)
         return df
@@ -335,13 +369,11 @@ class DistantWorldsDataOrbit(PropertyGroup):
     # ---------------------------------
 
     def param_update(self, context):
-        body = getattr(context, "distant_worlds_body", None)
-        if body:
-            body.param_update(context)
+        self.get_body(context).param_update(context)
 
     def filepath_update(self, context):
         self.reload_data()
-        param_update(context)
+        self.param_update(context)
 
     filepath = StringProperty(name="File Path",
                               description="Data file containing ephemerides for the body",
@@ -357,6 +389,8 @@ class DistantWorldsDataOrbit(PropertyGroup):
         return Vector((0,0,0)) # TODO
 
     def path_segments(self, res):
+        data = self.get_data()
+        print(data)
         return [] # TODO
 
     def write_preset_py(self, file_preset):
