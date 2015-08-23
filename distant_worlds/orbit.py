@@ -23,6 +23,7 @@ import bpy
 from bpy.types import PropertyGroup
 from bpy.props import *
 from mathutils import *
+from distant_worlds.util import *
 
 def newton_raphson(f, df, x0, epsilon, maxiter=100):
     x = x0
@@ -295,6 +296,21 @@ def load_datafile(name):
     if path in _loaded_datafiles:
         raise Exception("Data file '%s' already loaded")
 
+    class DataElement:
+        def __init__(self, raw):
+            self.time = float(raw[0])
+            self.date = raw[1]
+            self.co = Vector(( float(raw[2]), float(raw[3]), float(raw[4]) ))
+            self.vel = Vector(( float(raw[5]), float(raw[6]), float(raw[7]) ))
+
+            # convert km to AU
+            self.co = self.co * 1000.0 / AU
+            self.vel = self.co * 1000.0 / AU
+
+    def parse_line(line):
+        data = [s.strip() for s in line.split(',')]
+        return DataElement(data)
+
     header = ""
     data = []
     try:
@@ -310,7 +326,7 @@ def load_datafile(name):
                     if line.startswith("$$EOE"):
                         part = 2
                         continue
-                    data.append(line)
+                    data.append(parse_line(line))
                 else:
                     break
     except FileNotFoundError:
@@ -389,9 +405,33 @@ class DistantWorldsDataOrbit(PropertyGroup):
         return Vector((0,0,0)) # TODO
 
     def path_segments(self, res):
-        data = self.get_data()
-        print(data)
-        return [] # TODO
+        df = self.get_data()
+        if not df or not df.data:
+            return
+
+        numpt = len(df.data)
+
+        n = 0.0
+        dn = float(numpt - 1) / float(res - 1)
+        co_prev = None
+        handle_prev = None
+        print("data path %d:" % numpt)
+        for i in range(res):
+            print("  %f:" % n)
+            k = int(n)
+            pt1 = df.data[k]
+            pt2 = df.data[min(k + 1, numpt-1)]
+
+            t = n - floor(n)
+            co = pt1.co * (1.0-t) + pt2.co * t
+            handle = Vector((0,0,0)) # TODO
+
+            if co_prev:
+                yield co_prev, co, co_prev - handle_prev, co + handle
+            
+            n += dn
+            co_prev = co
+            handle_prev = handle
 
     def write_preset_py(self, file_preset):
         props = ["filepath",
