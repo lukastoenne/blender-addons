@@ -33,8 +33,8 @@ import bpy
 from bpy.types import Operator
 
 dotfile = '/tmp/depsgraph.dot'
-imgfile = '/tmp/depsgraph.png'
-dotformat = 'png'
+imgfile = '/tmp/depsgraph.svg'
+dotformat = 'svg'
 
 class DepshowOperator(Operator):
     bl_idname = "scene.depsgraph_show"
