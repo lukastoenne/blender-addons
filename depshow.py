@@ -50,7 +50,10 @@ class DepshowOperator(Operator):
         dg = scene.depsgraph
         
         dg.debug_graphviz(dotfile)
-        subprocess.Popen(['dot', '-T'+dotformat, '-o', imgfile, dotfile])
+        
+        process = subprocess.Popen(['dot', '-T'+dotformat, '-o', imgfile, dotfile])
+        process.wait()
+        
         subprocess.Popen(['xdg-open', imgfile])
         
         return {'FINISHED'}
