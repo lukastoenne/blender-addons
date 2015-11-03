@@ -30,7 +30,7 @@ bl_info = {
 
 import os, subprocess
 import bpy
-from bpy.types import Operator
+from bpy.types import Operator, Panel
 
 dotfile = '/tmp/depsgraph.dot'
 imgfile = '/tmp/depsgraph.svg'
@@ -40,16 +40,17 @@ class DepshowOperator(Operator):
     bl_idname = "scene.depsgraph_show"
     bl_label = "Show Depsgraph"
 
-    @classmethod
-    def poll(cls, context):
-        scene = context.scene
-        return scene is not None and hasattr(scene, 'depsgraph') and hasattr(scene.depsgraph, 'debug_graphviz')
-
     def execute(self, context):
-        scene = context.scene
-        dg = scene.depsgraph
         
-        dg.debug_graphviz(dotfile)
+        if hasattr(context, "debug_depsgraph"):
+            scene = context.debug_depsgraph
+            dg = scene.depsgraph
+            dg.debug_graphviz(dotfile)
+        elif hasattr(context, "debug_texture"):
+            tex = context.debug_texture
+            tex.debug_nodes_graphviz(dotfile)
+        else:
+            return {'CANCELLED'}
         
         process = subprocess.Popen(['dot', '-T'+dotformat, '-o', imgfile, dotfile])
         process.wait()
@@ -58,16 +59,40 @@ class DepshowOperator(Operator):
         
         return {'FINISHED'}
 
-def draw_depshow(self, context):
-    layout = self.layout
-    layout.operator("scene.depsgraph_show")
+def draw_debug_depsgraph(self, context):
+    scene = context.scene
+    if hasattr(scene, 'depsgraph') and hasattr(scene.depsgraph, 'debug_graphviz'):
+        layout = self.layout
+        layout.context_pointer_set("debug_depsgraph", scene)
+        layout.operator("scene.depsgraph_show")
+
+class TextureDebugNodesPanel(Panel):
+    bl_label = "Debug Nodes"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "texture"
+    bl_options = {'HIDE_HEADER'}
+
+    @classmethod
+    def poll(cls, context):
+        tex = context.texture
+        return tex and (tex.type != 'NONE' or tex.use_nodes)
+
+    def draw(self, context):
+        tex = context.texture
+        if hasattr(tex, 'debug_nodes_graphviz'):
+            layout = self.layout
+            layout.context_pointer_set("debug_texture", tex)
+            layout.operator("scene.depsgraph_show")
 
 def register():
     bpy.utils.register_class(DepshowOperator)
-    bpy.types.SCENE_PT_scene.append(draw_depshow)
+    bpy.types.SCENE_PT_scene.append(draw_debug_depsgraph)
+    bpy.utils.register_class(TextureDebugNodesPanel)
 
 def unregister():
-    bpy.types.SCENE_PT_scene.remove(draw_depshow)
+    bpy.types.SCENE_PT_scene.remove(draw_debug_depsgraph)
+    bpy.utils.unregister_class(TextureDebugNodesPanel)
     bpy.utils.unregister_class(DepshowOperator)
 
 if __name__ == "__main__":
