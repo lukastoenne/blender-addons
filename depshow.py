@@ -49,6 +49,9 @@ class DepshowOperator(Operator):
         elif hasattr(context, "debug_texture"):
             tex = context.debug_texture
             tex.debug_nodes_graphviz(dotfile)
+        elif hasattr(context, "debug_modifiers"):
+            ob = context.debug_modifiers
+            ob.debug_nodes_graphviz(dotfile)
         else:
             return {'CANCELLED'}
         
@@ -64,6 +67,13 @@ def draw_debug_depsgraph(self, context):
     if hasattr(scene, 'depsgraph') and hasattr(scene.depsgraph, 'debug_graphviz'):
         layout = self.layout
         layout.context_pointer_set("debug_depsgraph", scene)
+        layout.operator("scene.depsgraph_show")
+
+def draw_debug_modifiers(self, context):
+    ob = context.object
+    if hasattr(ob, 'debug_nodes_graphviz'):
+        layout = self.layout
+        layout.context_pointer_set("debug_modifiers", ob)
         layout.operator("scene.depsgraph_show")
 
 class TextureDebugNodesPanel(Panel):
@@ -88,10 +98,12 @@ class TextureDebugNodesPanel(Panel):
 def register():
     bpy.utils.register_class(DepshowOperator)
     bpy.types.SCENE_PT_scene.append(draw_debug_depsgraph)
+    bpy.types.DATA_PT_modifiers.append(draw_debug_modifiers)
     bpy.utils.register_class(TextureDebugNodesPanel)
 
 def unregister():
     bpy.types.SCENE_PT_scene.remove(draw_debug_depsgraph)
+    bpy.types.DATA_PT_modifiers.remove(draw_debug_modifiers)
     bpy.utils.unregister_class(TextureDebugNodesPanel)
     bpy.utils.unregister_class(DepshowOperator)
 
