@@ -38,7 +38,7 @@ dotformat = 'svg'
 
 class DepshowOperator(Operator):
     bl_idname = "scene.depsgraph_show"
-    bl_label = "Show Depsgraph"
+    bl_label = "Show Debug Graphviz Nodes"
 
     def execute(self, context):
         
