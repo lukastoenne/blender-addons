@@ -31,6 +31,7 @@ bl_info = {
 import os, subprocess
 import bpy
 from bpy.types import Operator, Panel
+from bpy.props import BoolProperty
 
 dotfile = '/tmp/depsgraph.dot'
 imgfile = '/tmp/depsgraph.svg'
@@ -39,6 +40,9 @@ dotformat = 'svg'
 class DepshowOperator(Operator):
     bl_idname = "scene.depsgraph_show"
     bl_label = "Show Debug Graphviz Nodes"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    finalize = BoolProperty(name="Finalize", default=True)
 
     def execute(self, context):
         
@@ -48,13 +52,13 @@ class DepshowOperator(Operator):
             dg.debug_graphviz(dotfile)
         elif hasattr(context, "debug_texture"):
             tex = context.debug_texture
-            tex.debug_nodes_graphviz(dotfile)
+            tex.debug_nodes_graphviz(dotfile, self.finalize)
         elif hasattr(context, "debug_modifiers"):
             ob = context.debug_modifiers
-            ob.debug_geometry_nodes_graphviz(dotfile)
+            ob.debug_geometry_nodes_graphviz(dotfile, self.finalize)
         elif hasattr(context, "debug_duplis"):
             ob = context.debug_duplis
-            ob.debug_instancing_nodes_graphviz(dotfile)
+            ob.debug_instancing_nodes_graphviz(dotfile, self.finalize)
         else:
             return {'CANCELLED'}
         
@@ -65,26 +69,33 @@ class DepshowOperator(Operator):
         
         return {'FINISHED'}
 
+def draw_depshow_op(layout):
+    col = layout.column(align=True)
+    props = col.operator("scene.depsgraph_show")
+    props.finalize = True
+    props = col.operator("scene.depsgraph_show", text="(unoptimized)")
+    props.finalize = False
+
 def draw_debug_depsgraph(self, context):
     scene = context.scene
     if hasattr(scene, 'depsgraph') and hasattr(scene.depsgraph, 'debug_graphviz'):
         layout = self.layout
         layout.context_pointer_set("debug_depsgraph", scene)
-        layout.operator("scene.depsgraph_show")
+        draw_depshow_op(layout)
 
 def draw_debug_modifiers(self, context):
     ob = context.object
     if hasattr(ob, 'debug_geometry_nodes_graphviz'):
         layout = self.layout
         layout.context_pointer_set("debug_modifiers", ob)
-        layout.operator("scene.depsgraph_show")
+        draw_depshow_op(layout)
 
 def draw_debug_duplis(self, context):
     ob = context.object
     if hasattr(ob, 'debug_instancing_nodes_graphviz'):
         layout = self.layout
         layout.context_pointer_set("debug_duplis", ob)
-        layout.operator("scene.depsgraph_show")
+        draw_depshow_op(layout)
 
 class TextureDebugNodesPanel(Panel):
     bl_label = "Debug Nodes"
@@ -103,7 +114,7 @@ class TextureDebugNodesPanel(Panel):
         if hasattr(tex, 'debug_nodes_graphviz'):
             layout = self.layout
             layout.context_pointer_set("debug_texture", tex)
-            layout.operator("scene.depsgraph_show")
+            draw_depshow_op(layout)
 
 def register():
     bpy.utils.register_class(DepshowOperator)
