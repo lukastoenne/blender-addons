@@ -51,7 +51,10 @@ class DepshowOperator(Operator):
             tex.debug_nodes_graphviz(dotfile)
         elif hasattr(context, "debug_modifiers"):
             ob = context.debug_modifiers
-            ob.debug_nodes_graphviz(dotfile)
+            ob.debug_geometry_nodes_graphviz(dotfile)
+        elif hasattr(context, "debug_duplis"):
+            ob = context.debug_duplis
+            ob.debug_instancing_nodes_graphviz(dotfile)
         else:
             return {'CANCELLED'}
         
@@ -71,9 +74,16 @@ def draw_debug_depsgraph(self, context):
 
 def draw_debug_modifiers(self, context):
     ob = context.object
-    if hasattr(ob, 'debug_nodes_graphviz'):
+    if hasattr(ob, 'debug_geometry_nodes_graphviz'):
         layout = self.layout
         layout.context_pointer_set("debug_modifiers", ob)
+        layout.operator("scene.depsgraph_show")
+
+def draw_debug_duplis(self, context):
+    ob = context.object
+    if hasattr(ob, 'debug_instancing_nodes_graphviz'):
+        layout = self.layout
+        layout.context_pointer_set("debug_duplis", ob)
         layout.operator("scene.depsgraph_show")
 
 class TextureDebugNodesPanel(Panel):
@@ -99,11 +109,13 @@ def register():
     bpy.utils.register_class(DepshowOperator)
     bpy.types.SCENE_PT_scene.append(draw_debug_depsgraph)
     bpy.types.DATA_PT_modifiers.append(draw_debug_modifiers)
+    bpy.types.OBJECT_PT_duplication.append(draw_debug_duplis)
     bpy.utils.register_class(TextureDebugNodesPanel)
 
 def unregister():
     bpy.types.SCENE_PT_scene.remove(draw_debug_depsgraph)
     bpy.types.DATA_PT_modifiers.remove(draw_debug_modifiers)
+    bpy.types.OBJECT_PT_duplication.remove(draw_debug_duplis)
     bpy.utils.unregister_class(TextureDebugNodesPanel)
     bpy.utils.unregister_class(DepshowOperator)
 
