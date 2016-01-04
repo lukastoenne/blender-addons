@@ -59,7 +59,7 @@ class DepshowOperator(Operator):
             dg.debug_graphviz(dotfile)
         elif hasattr(context, "debug_nodetree"):
             ntree = context.debug_nodetree
-            ntree.bvm_debug_graphviz(dotfile, self.function_type, self.debug_mode)
+            ntree.bvm_debug_graphviz(dotfile, self.function_type, self.debug_mode, label=ntree.name)
         else:
             return {'CANCELLED'}
         
