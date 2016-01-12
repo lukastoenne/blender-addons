@@ -37,29 +37,16 @@ dotfile = '/tmp/depsgraph.dot'
 imgfile = '/tmp/depsgraph.svg'
 dotformat = 'svg'
 
-def enum_property_copy(prop):
-    items = [(i.identifier, i.name, i.description, i.icon, i.value) for i in prop.enum_items]
-    return EnumProperty(name=prop.name,
-                        description=prop.description,
-                        default=prop.default,
-                        items=items)
-
 class DepshowOperator(Operator):
     bl_idname = "scene.depsgraph_show"
     bl_label = "Show Debug Graphviz Nodes"
     bl_options = {'REGISTER', 'UNDO'}
-
-    function_type = enum_property_copy(bpy.types.NodeTree.bl_rna.functions['bvm_debug_graphviz'].parameters['function_type'])
-    debug_mode = enum_property_copy(bpy.types.NodeTree.bl_rna.functions['bvm_debug_graphviz'].parameters['debug_mode'])
 
     def execute(self, context):
         if hasattr(context, "debug_depsgraph"):
             scene = context.debug_depsgraph
             dg = scene.depsgraph
             dg.debug_graphviz(dotfile)
-        elif hasattr(context, "debug_nodetree"):
-            ntree = context.debug_nodetree
-            ntree.bvm_debug_graphviz(dotfile, self.function_type, self.debug_mode, label=ntree.name)
         else:
             return {'CANCELLED'}
         
@@ -70,61 +57,19 @@ class DepshowOperator(Operator):
         
         return {'FINISHED'}
 
-def draw_depshow_op(layout, ntree):
-    if isinstance(ntree, bpy.types.GeometryNodeTree):
-        funtype = 'GEOMETRY'
-    elif isinstance(ntree, bpy.types.InstancingNodeTree):
-        funtype = 'INSTANCING'
-    elif isinstance(ntree, bpy.types.TextureNodeTree):
-        funtype = 'TEXTURE'
-    elif isinstance(ntree, bpy.types.ForceFieldNodeTree):
-        funtype = 'FORCEFIELD'
-    else:
-        return
-
-    layout.context_pointer_set("debug_nodetree", ntree)
-
-    col = layout.column(align=True)
-    props = col.operator("scene.depsgraph_show", text="Nodes")
-    props.function_type = funtype
-    props.debug_mode = 'NODES'
-    props = col.operator("scene.depsgraph_show", text="Nodes (unoptimized)")
-    props.function_type = funtype
-    props.debug_mode = 'NODES_UNOPTIMIZED'
-    props = col.operator("scene.depsgraph_show", text="Code")
-    props.function_type = funtype
-    props.debug_mode = 'CODEGEN'
-
 def draw_debug_depsgraph(self, context):
     scene = context.scene
     if hasattr(scene, 'depsgraph') and hasattr(scene.depsgraph, 'debug_graphviz'):
         layout = self.layout
         layout.context_pointer_set("debug_depsgraph", scene)
-        draw_depshow_op(layout)
-
-class NodeTreeDebugPanel(Panel):
-    bl_idname = "nodes.bvm_debug_graphviz"
-    bl_label = "Debug Nodes"
-    bl_space_type = 'NODE_EDITOR'
-    bl_region_type = 'UI'
-
-    @classmethod
-    def poll(cls, context):
-        return context.space_data.edit_tree is not None
-
-    def draw(self, context):
-        space = context.space_data
-        ntree = space.edit_tree
-        if hasattr(ntree, 'bvm_debug_graphviz'):
-            layout = self.layout
-            draw_depshow_op(layout, ntree)
+        layout.operator("scene.depsgraph_show", text="Graphviz Debug")
 
 def register():
     bpy.utils.register_class(DepshowOperator)
-    bpy.utils.register_class(NodeTreeDebugPanel)
+    bpy.types.SCENE_PT_scene.append(draw_debug_depsgraph)
 
 def unregister():
-    bpy.utils.unregister_class(NodeTreeDebugPanel)
+    bpy.types.SCENE_PT_scene.remove(draw_debug_depsgraph)
     bpy.utils.unregister_class(DepshowOperator)
 
 if __name__ == "__main__":
